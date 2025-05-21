@@ -150,9 +150,14 @@
 
     attachMapPan(fabricCanvas.upperCanvasEl);
 
-    fabricCanvas.on('mouse:down', opt => {
-      console.log('Fabric click test →', opt.target ? opt.target.type : '<nothing>');
-    });
+    function getViewportCenter() {
+      const w = fabricCanvas.getWidth();
+      const h = fabricCanvas.getHeight();
+      return {
+        x: (w / 2 - transform.offsetX) / transform.scale,
+        y: (h / 2 - transform.offsetY) / transform.scale,
+      };
+    }
 
 
     // ──────────────────────────────────────────────────────────────
@@ -667,10 +672,10 @@
 
     function attachMapPan(el) {
       let isDragging = false;
-      let dragStart = { x: 0, y: 0 };
 
-      // ZOOM
+      // ── ZOOM ──
       el.addEventListener('wheel', e => {
+        if (fabricCanvas.isDrawingMode) return;         // ← skip when drawing
         e.preventDefault();
         const factor = e.deltaY < 0 ? 1.1 : 0.9;
         const zoom = fabricCanvas.getZoom() * factor;
@@ -678,39 +683,29 @@
           new fabric.Point(e.offsetX, e.offsetY),
           zoom
         );
-        // sync our transform state
-        const vpt = fabricCanvas.viewportTransform;
-        transform.scale = vpt[0];
-        transform.offsetX = vpt[4];
-        transform.offsetY = vpt[5];
+        syncTransform();
         scheduleDraw();
       }, { passive: false });
 
-      // START DRAG
+      // ── START PAN ──
       el.addEventListener('mousedown', e => {
-        // if Fabric sees a target here, bail out
-        if (fabricCanvas.findTarget(e)) return;
-
+        if (fabricCanvas.isDrawingMode) return;         // ← skip when drawing
+        if (fabricCanvas.findTarget(e)) return;         // ← skip when clicking a shape
         isDragging = true;
-        dragStart.x = e.clientX - transform.offsetX;
-        dragStart.y = e.clientY - transform.offsetY;
         el.style.cursor = 'grabbing';
       });
 
-      // DURING DRAG
+      // ── PAN ──
       el.addEventListener('mousemove', e => {
-        if (!isDragging) return;
+        if (fabricCanvas.isDrawingMode || !isDragging) return;  // ← skip when drawing
         fabricCanvas.relativePan(
           new fabric.Point(e.movementX, e.movementY)
         );
-        const vpt = fabricCanvas.viewportTransform;
-        transform.scale = vpt[0];
-        transform.offsetX = vpt[4];
-        transform.offsetY = vpt[5];
+        syncTransform();
         scheduleDraw();
       });
 
-      // END DRAG
+      // ── END PAN ──
       ['mouseup', 'mouseleave'].forEach(evt =>
         el.addEventListener(evt, () => {
           isDragging = false;
@@ -719,79 +714,145 @@
       );
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // 13) DRAWING TOOLBAR HANDLERS
-    // ──────────────────────────────────────────────────────────────
+    // helper to sync your transform object from Fabric’s viewport
+    function syncTransform() {
+      const vpt = fabricCanvas.viewportTransform;
+      transform.scale = vpt[0];
+      transform.offsetX = vpt[4];
+      transform.offsetY = vpt[5];
+    }
+
+
+    // ──── DRAWING TOOLBAR HANDLERS ────────────────────────────────
+    /**
+     * Returns the true center of the _visible_ canvas in world-coords,
+     * by:
+     *  1) grabbing the on-screen client size,
+     *  2) inverting the current viewport matrix,
+     *  3) mapping the screen center back into world space.
+     */
+    function getViewportCenter() {
+      // ① ensure Fabric knows the true DOM offsets
+      fabricCanvas.calcOffset();
+
+      // ② measure the upper‐canvas on screen
+      const rect = fabricCanvas.upperCanvasEl.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      // ③ ask Fabric: “where in world‐space is this client‐point?”
+      const pt = fabricCanvas.getPointer({ clientX: centerX, clientY: centerY });
+      return pt;  // { x:…, y:… } in world coords
+    }
+
+
     // switch to selection
     $('selectBtn').onclick = () => {
       fabricCanvas.isDrawingMode = false;
       fabricCanvas.selection = true;
       fabricCanvas.forEachObject(o => o.selectable = true);
     };
+
     // rectangle
     $('rectBtn').onclick = () => {
       fabricCanvas.isDrawingMode = false;
+      const { x, y } = getViewportCenter();
       const r = new fabric.Rect({
-        left: 50, top: 50, width: 100, height: 60,
+        left: x, top: y,
+        width: 100, height: 60,
+        originX: 'center', originY: 'center',
         fill: 'rgba(0,0,0,0)', stroke: '#000', strokeWidth: 2
       });
       fabricCanvas.add(r).setActiveObject(r);
     };
+
     // circle
     $('circleBtn').onclick = () => {
       fabricCanvas.isDrawingMode = false;
+      const { x, y } = getViewportCenter();
       const c = new fabric.Circle({
-        left: 80, top: 80, radius: 40,
+        left: x, top: y,
+        originX: 'center', originY: 'center',
+        radius: 40,
         fill: 'rgba(0,0,0,0)', stroke: '#000', strokeWidth: 2
       });
       fabricCanvas.add(c).setActiveObject(c);
     };
+
     // ellipse
     $('ellipseBtn').onclick = () => {
       fabricCanvas.isDrawingMode = false;
+      const { x, y } = getViewportCenter();
       const e = new fabric.Ellipse({
-        left: 100, top: 100, rx: 60, ry: 30,
+        left: x, top: y,
+        originX: 'center', originY: 'center',
+        rx: 60, ry: 30,
         fill: 'rgba(0,0,0,0)', stroke: '#000', strokeWidth: 2
       });
       fabricCanvas.add(e).setActiveObject(e);
     };
+
     // freehand
     $('pencilBtn').onclick = () => {
       fabricCanvas.isDrawingMode = true;
       fabricCanvas.freeDrawingBrush.width = 2;
       fabricCanvas.freeDrawingBrush.color = '#000';
+      fabricCanvas.freeDrawingCursor = 'crosshair';   // ← nicer cursor
     };
+
     // text
     $('textBtn').onclick = () => {
       fabricCanvas.isDrawingMode = false;
-      const t = new fabric.IText('Edit me', { left: 120, top: 120, fontSize: 20, fill: '#000' });
+      const { x, y } = getViewportCenter();
+      const t = new fabric.IText('Edit me', {
+        left: x, top: y,
+        originX: 'center', originY: 'center',
+        fontSize: 20, fill: '#000'
+      });
       fabricCanvas.add(t).setActiveObject(t);
     };
+
     // arrow
     $('arrowBtn').onclick = () => {
       fabricCanvas.isDrawingMode = false;
-      const pts = [10, 10, 100, 10];
-      const l = new fabric.Line(pts, { stroke: '#000', strokeWidth: 2, selectable: false });
-      const tri = new fabric.Triangle({
-        left: 100, top: 5, width: 10, height: 10,
-        fill: '#000', angle: 90, selectable: false
+      const { x, y } = getViewportCenter();
+
+      // a horizontal line + a triangle on its right end
+      const line = new fabric.Line([-50, 0, 50, 0], {
+        stroke: '#000', strokeWidth: 2,
+        originX: 'center', originY: 'center'
       });
-      const arrow = new fabric.Group([l, tri], { left: 10, top: 10, angle: 0 });
+      const head = new fabric.Triangle({
+        left: 50, top: 0,
+        originX: 'center', originY: 'center',
+        width: 10, height: 10, angle: 90, fill: '#000'
+      });
+      const arrow = new fabric.Group([line, head], {
+        left: x, top: y,
+        originX: 'center', originY: 'center'
+      });
       fabricCanvas.add(arrow).setActiveObject(arrow);
     };
+
     // image upload
     $('imageInput').addEventListener('change', e => {
       const f = e.target.files[0];
       if (!f) return;
-      const r = new FileReader();
-      r.onload = evt => {
+      const reader = new FileReader();
+      reader.onload = evt => {
         fabric.Image.fromURL(evt.target.result, img => {
-          img.set({ left: 50, top: 50, scaleX: 0.5, scaleY: 0.5 });
+          const { x, y } = getViewportCenter();
+          img.set({
+            left: x, top: y,
+            originX: 'center', originY: 'center',
+            scaleX: 0.5, scaleY: 0.5
+          });
           fabricCanvas.add(img).setActiveObject(img);
         });
       };
-      r.readAsDataURL(f);
+      reader.readAsDataURL(f);
     });
+
     // group
     $('groupBtn').onclick = () => {
       const sel = fabricCanvas.getActiveObjects();
