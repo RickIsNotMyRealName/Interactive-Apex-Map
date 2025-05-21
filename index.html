@@ -94,7 +94,11 @@
         <button id="ungroupBtn">Ungroup</button>
         <button id="bringForwardBtn">Bring Forward</button>
         <button id="sendBackwardBtn">Send Back</button>
+
+        <!-- new delete tool -->
+        <button id="deleteBtn">🗑️ Delete</button>
       </div>
+
 
       <!-- STACKED CANVASES -->
       <div id="canvasContainer">
@@ -158,6 +162,20 @@
         y: (h / 2 - transform.offsetY) / transform.scale,
       };
     }
+
+    fabricCanvas.on('path:created', opt => {
+      // 1) exit pencil mode
+      fabricCanvas.isDrawingMode = false;
+      // (optional) re-enable selection if you’d like:
+      fabricCanvas.selection = true;
+      fabricCanvas.forEachObject(o => o.selectable = true);
+
+      // 2) deselect the new path so it isn’t active
+      fabricCanvas.discardActiveObject();
+
+      // 3) re-render
+      fabricCanvas.requestRenderAll();
+    });
 
 
     // ──────────────────────────────────────────────────────────────
@@ -745,9 +763,15 @@
       return pt;  // { x:…, y:… } in world coords
     }
 
+    function activateTool(btnId) {
+      document.querySelectorAll('#toolbar button').forEach(b => b.classList.remove('active'));
+      $(btnId).classList.add('active');
+    }
+
 
     // switch to selection
     $('selectBtn').onclick = () => {
+      activateTool('selectBtn');
       fabricCanvas.isDrawingMode = false;
       fabricCanvas.selection = true;
       fabricCanvas.forEachObject(o => o.selectable = true);
@@ -755,6 +779,7 @@
 
     // rectangle
     $('rectBtn').onclick = () => {
+      activateTool('rectBtn');
       fabricCanvas.isDrawingMode = false;
       const { x, y } = getViewportCenter();
       const r = new fabric.Rect({
@@ -764,10 +789,13 @@
         fill: 'rgba(0,0,0,0)', stroke: '#000', strokeWidth: 2
       });
       fabricCanvas.add(r).setActiveObject(r);
+      fabricCanvas.discardActiveObject();  // ← unselect
+      fabricCanvas.requestRenderAll();
     };
 
     // circle
     $('circleBtn').onclick = () => {
+      activateTool('circleBtn');
       fabricCanvas.isDrawingMode = false;
       const { x, y } = getViewportCenter();
       const c = new fabric.Circle({
@@ -777,10 +805,13 @@
         fill: 'rgba(0,0,0,0)', stroke: '#000', strokeWidth: 2
       });
       fabricCanvas.add(c).setActiveObject(c);
+      fabricCanvas.discardActiveObject();  // ← unselect
+      fabricCanvas.requestRenderAll();
     };
 
     // ellipse
     $('ellipseBtn').onclick = () => {
+      activateTool('ellipseBtn');
       fabricCanvas.isDrawingMode = false;
       const { x, y } = getViewportCenter();
       const e = new fabric.Ellipse({
@@ -790,10 +821,13 @@
         fill: 'rgba(0,0,0,0)', stroke: '#000', strokeWidth: 2
       });
       fabricCanvas.add(e).setActiveObject(e);
+      fabricCanvas.discardActiveObject();  // ← unselect
+      fabricCanvas.requestRenderAll();
     };
 
     // freehand
     $('pencilBtn').onclick = () => {
+      activateTool('pencilBtn');
       fabricCanvas.isDrawingMode = true;
       fabricCanvas.freeDrawingBrush.width = 2;
       fabricCanvas.freeDrawingBrush.color = '#000';
@@ -802,6 +836,7 @@
 
     // text
     $('textBtn').onclick = () => {
+      activateTool('textBtn');
       fabricCanvas.isDrawingMode = false;
       const { x, y } = getViewportCenter();
       const t = new fabric.IText('Edit me', {
@@ -810,10 +845,13 @@
         fontSize: 20, fill: '#000'
       });
       fabricCanvas.add(t).setActiveObject(t);
+      fabricCanvas.discardActiveObject();  // ← unselect
+      fabricCanvas.requestRenderAll();
     };
 
     // arrow
     $('arrowBtn').onclick = () => {
+      activateTool('arrowBtn');
       fabricCanvas.isDrawingMode = false;
       const { x, y } = getViewportCenter();
 
@@ -832,10 +870,13 @@
         originX: 'center', originY: 'center'
       });
       fabricCanvas.add(arrow).setActiveObject(arrow);
+      fabricCanvas.discardActiveObject();  // ← unselect
+      fabricCanvas.requestRenderAll();
     };
 
     // image upload
     $('imageInput').addEventListener('change', e => {
+      activateTool('imageInput');
       const f = e.target.files[0];
       if (!f) return;
       const reader = new FileReader();
@@ -848,6 +889,8 @@
             scaleX: 0.5, scaleY: 0.5
           });
           fabricCanvas.add(img).setActiveObject(img);
+          fabricCanvas.discardActiveObject();  // ← unselect
+          fabricCanvas.requestRenderAll();
         });
       };
       reader.readAsDataURL(f);
@@ -855,6 +898,7 @@
 
     // group
     $('groupBtn').onclick = () => {
+      activateTool('groupBtn');
       const sel = fabricCanvas.getActiveObjects();
       if (sel.length > 1) {
         const grp = new fabric.Group(sel);
@@ -864,6 +908,7 @@
     };
     // ungroup
     $('ungroupBtn').onclick = () => {
+      activateTool('ungroupBtn');
       const obj = fabricCanvas.getActiveObject();
       if (obj && obj.type === 'group') {
         obj.toActiveSelection();
@@ -873,6 +918,48 @@
     // z-order
     $('bringForwardBtn').onclick = () => fabricCanvas.getActiveObject()?.bringForward();
     $('sendBackwardBtn').onclick = () => fabricCanvas.getActiveObject()?.sendBackwards();
+
+    // ──── DELETE TOOL & KEYBINDINGS ──────────────────────────────
+
+    // Delete-button: remove all selected objects
+    $('deleteBtn').onclick = () => {
+      activateTool('deleteBtn');
+      const active = fabricCanvas.getActiveObjects();
+      if (active.length) {
+        active.forEach(obj => fabricCanvas.remove(obj));
+        fabricCanvas.discardActiveObject();
+        fabricCanvas.requestRenderAll();
+      }
+    };
+
+    // Keybindings: Esc = cancel tool / deselect, Del/Backspace = delete selection
+    document.addEventListener('keydown', e => {
+      // if any text input or other form has focus, ignore
+      if (document.activeElement.tagName.match(/INPUT|TEXTAREA/)) return;
+
+      if (e.key === 'Escape') {
+        // go back to “select” mode
+        fabricCanvas.isDrawingMode = false;
+        fabricCanvas.selection = true;
+        fabricCanvas.forEachObject(o => o.selectable = true);
+        fabricCanvas.discardActiveObject();
+        fabricCanvas.requestRenderAll();
+
+        // (optional) visually indicate “Select” in your UI:
+        // document.querySelectorAll('#toolbar button').forEach(b=>b.classList.remove('active'));
+        // $('selectBtn').classList.add('active');
+      }
+      else if (e.key === 'Delete' || e.key === 'Backspace') {
+        // delete any selected objects
+        const active = fabricCanvas.getActiveObjects();
+        if (active.length) {
+          active.forEach(obj => fabricCanvas.remove(obj));
+          fabricCanvas.discardActiveObject();
+          fabricCanvas.requestRenderAll();
+        }
+      }
+    });
+
 
 
     // skip filter check

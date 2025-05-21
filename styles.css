@@ -285,3 +285,9 @@ canvas.upper-canvas {
 #mapCanvas {
   z-index: 0;
 }
+
+/* add this to your CSS */
+#toolbar button.active {
+  background: var(--accent);
+  color: #000;
+}
