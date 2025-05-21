@@ -1,10 +1,16 @@
+<!-- map.html -->
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
-  <title>Map Visualizer</title>
+  <title>Map Visualizer + Drawing Tools</title>
   <link rel="stylesheet" href="styles.css">
+
+  <!-- Fabric.js for drawing overlay -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
 </head>
+
 <body>
   <div id="container">
     <div id="sidebar">
@@ -58,600 +64,764 @@
       <!-- ── HEIGHT COLOURING ─────────────────────────────────── -->
       <details open>
         <summary>Height Colouring</summary>
-        <label>Min H:
+        <label>Min&nbsp;H:
           <input type="number" id="heightMinInput">
         </label>
-        <label>Max H:
+        <label>Max&nbsp;H:
           <input type="number" id="heightMaxInput">
         </label>
         <label><input type="checkbox" id="hideOutCB"> Hide out-of-range</label>
-        <small>&lt; min → cyan, &gt; max → magenta</small>
+        <small>&lt; min → cyan,&nbsp;&gt; max → magenta</small>
         <div id="heightLegend"></div>
       </details>
     </div>
 
     <div id="main">
-      <canvas id="mapCanvas"></canvas>
+
+      <!-- DRAWING TOOLBAR -->
+      <div id="toolbar">
+        <button id="selectBtn">Select</button>
+        <button id="rectBtn">Rectangle</button>
+        <button id="circleBtn">Circle</button>
+        <button id="ellipseBtn">Ellipse</button>
+        <button id="pencilBtn">Freehand</button>
+        <button id="textBtn">Text</button>
+        <button id="arrowBtn">Arrow</button>
+        <label>
+          Image: <input type="file" id="imageInput" accept="image/*">
+        </label>
+        <button id="groupBtn">Group</button>
+        <button id="ungroupBtn">Ungroup</button>
+        <button id="bringForwardBtn">Bring Forward</button>
+        <button id="sendBackwardBtn">Send Back</button>
+      </div>
+
+      <!-- STACKED CANVASES -->
+      <div id="canvasContainer">
+        <canvas id="mapCanvas"></canvas>
+        <canvas id="drawingCanvas"></canvas>
+      </div>
+
       <div id="tooltip"></div>
     </div>
   </div>
 
   <script>
-  /* ============================================================= *
-   *  DOM SHORTCUTS
-   * ============================================================= */
-  const $                   = id => document.getElementById(id);
-  const defaultMapSelect    = $('defaultMapSelect');
-  const customJsonContainer = $('customJsonContainer');
-  const combinedInput       = $('combinedInput');
-  const etConfigInput       = $('etConfigInput');
-  const entityTypesDiv      = $('entityTypes');
-  const filtersDiv          = $('filters');
-  const legendDiv           = $('legend');
-  const canvas              = $('mapCanvas');
-  const ctx                 = canvas.getContext('2d');
-  const tooltip             = $('tooltip');
-  const heightMinInput      = $('heightMinInput');
-  const heightMaxInput      = $('heightMaxInput');
-  const hideOutCB           = $('hideOutCB');
-  const heightLegend        = $('heightLegend');
+    // ──────────────────────────────────────────────────────────────
+    // 1) DOM SHORTCUTS
+    // ──────────────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+    const defaultMapSelect = $('defaultMapSelect');
+    const customJsonContainer = $('customJsonContainer');
+    const combinedInput = $('combinedInput');
+    const etConfigInput = $('etConfigInput');
+    const entityTypesDiv = $('entityTypes');
+    const filtersDiv = $('filters');
+    const legendDiv = $('legend');
+    const mapCanvas = $('mapCanvas');
+    const ctx = mapCanvas.getContext('2d');
+    const drawingCanvas = $('drawingCanvas');
+    const tooltip = $('tooltip');
+    const heightMinInput = $('heightMinInput');
+    const heightMaxInput = $('heightMaxInput');
+    const hideOutCB = $('hideOutCB');
+    const heightLegend = $('heightLegend');
 
-  /* ============================================================= *
-   *  GLOBAL STATE
-   * ============================================================= */
-  const propertyKeys     = ['model','editorclass','classname','environment','instance_name','script_name'];
-  let filters={}, missingFilters={};
-  let mapDef=null, mapImage=null, worldBounds={};
-  let entData=[];
-  let entityTypeConfig=[], entityTypeFilters=[];
-  const iconCache       = {};   // raw <img> objects
-  const tintedIconCache = {};   // offscreen canvases with tint applied
-  const transform       = {scale:1,offsetX:0,offsetY:0};
-  let isDragging=false, dragStart={x:0,y:0}, needsRedraw=false, zipSegments=[];
-  let heightMin=0, heightMax=0, hideOutOfRange=false;
-  const belowClr='#00ffff', aboveClr='#ff00ff';
+    // ──────────────────────────────────────────────────────────────
+    // 2) GLOBAL STATE
+    // ──────────────────────────────────────────────────────────────
+    const propertyKeys = ['model', 'editorclass', 'classname', 'environment', 'instance_name', 'script_name'];
+    let filters = {}, missingFilters = {};
+    let mapDef = null, mapImage = null, worldBounds = {};
+    let entData = [];
+    let entityTypeConfig = [], entityTypeFilters = [];
+    const iconCache = {};   // raw <img>
+    const tintedIconCache = {};   // offscreen tinted
+    const transform = { scale: 1, offsetX: 0, offsetY: 0 };
+    let isDragging = false, dragStart = { x: 0, y: 0 }, needsRedraw = false, zipSegments = [];
+    let heightMin = 0, heightMax = 0, hideOutOfRange = false;
+    const belowClr = '#00ffff', aboveClr = '#ff00ff';
 
-  /* ============================================================= *
-   *  TINT HELPER
-   * ============================================================= */
-  function createTintedIcon(img, tintColor) {
-    const w = img.naturalWidth, h = img.naturalHeight;
-    const off = document.createElement('canvas');
-    off.width = w; off.height = h;
-    const octx = off.getContext('2d');
-
-    // 1) draw original
-    octx.drawImage(img, 0, 0, w, h);
-
-    // 2) screen-blend tint
-    octx.globalCompositeOperation = 'screen';
-    octx.fillStyle = tintColor;
-    octx.fillRect(0, 0, w, h);
-
-    // 3) re-apply alpha mask
-    octx.globalCompositeOperation = 'destination-in';
-    octx.drawImage(img, 0, 0, w, h);
-
-    // 4) restore
-    octx.globalCompositeOperation = 'source-over';
-    return off;
-  }
-
-  /* ============================================================= *
-   *  LOAD DEFAULT MAPS
-   * ============================================================= */
-  async function loadDefaultList() {
-    try {
-      const res  = await fetch('./maps/manifest.json');
-      if (!res.ok) throw new Error(res.statusText);
-      const list = await res.json();
-      list.forEach(({name,file}) => {
-        const opt = document.createElement('option');
-        opt.value = `./maps/${file}`;
-        opt.textContent = name;
-        defaultMapSelect.appendChild(opt);
-      });
-      const customOpt = document.createElement('option');
-      customOpt.value       = '__custom';
-      customOpt.textContent = 'Load custom JSON…';
-      defaultMapSelect.appendChild(customOpt);
-    } catch (err) {
-      console.warn('Could not load map manifest:', err);
-    }
-  }
-
-  /* ============================================================= *
-   *  LOAD DEFAULT ENTITY TYPES (with tint)
-   * ============================================================= */
-  async function loadDefaultEntityTypes() {
-    try {
-      const res  = await fetch('./entityTypes/entity-types.json');
-      if (!res.ok) throw new Error(res.statusText);
-      const list = await res.json();
-
-      entityTypeConfig  = list;
-      entityTypeFilters = list.map(() => false);
-
-      // clear old caches
-      Object.keys(iconCache).forEach(k => delete iconCache[k]);
-      Object.keys(tintedIconCache).forEach(k => delete tintedIconCache[k]);
-
-      // load new icons & build tinted variants
-      list.forEach((c,i) => {
-        if (c.renderType === 'icon' && c.icon) {
-          const img = new Image();
-          img.src = c.icon;
-          iconCache[i] = img;
-          img.onload = () => {
-            if (c.tintColor) {
-              tintedIconCache[i] = createTintedIcon(img, c.tintColor);
-              // once tinted is ready, redraw
-              scheduleDraw();
-            }
-          };
-        }
-      });
-
-      buildEntityTypes();
-    } catch(err){
-      console.warn('Could not load entity types:', err);
-    }
-  }
-
-  /* ============================================================= *
-   *  SHARED MAP-LOADING PIPELINE
-   * ============================================================= */
-  function handleCombinedData(data, sourceName) {
-    // background
-    mapImage = new Image();
-    mapImage.onload = ()=>{
-      transform.scale = 1;
-      transform.offsetX = transform.offsetY = 0;
-      resizeCanvas();
-    };
-    mapImage.src = 'data:image/png;base64,' + data.background_image;
-
-    // map def
-    const cfg = data.config;
-    mapDef = {
-      posX: +cfg.pos_x,
-      posY: +cfg.pos_y,
-      scale: +cfg.scale
-    };
-
-    // entities with heights
-    const raw = Array.isArray(data.entities) ? data.entities : [];
-    let mn=Infinity, mx=-Infinity;
-    const ents = raw.filter(e=>typeof e.origin==='string').map(e => {
-      const props = {...e};
-      const [x,y,z=0] = props.origin.split(/\s+/).map(Number);
-      props.x=x; props.y=y; props.height=z;
-      mn = Math.min(mn,z);
-      mx = Math.max(mx,z);
-      return {x,y,h:z,props};
+    // initialize Fabric.js overlay
+    const fabricCanvas = new fabric.Canvas('drawingCanvas', {
+      selection: true,
+      preserveObjectStacking: true
     });
 
-    // default height limits
-    heightMin = Math.floor(mn);
-    heightMax = Math.ceil(mx);
-    heightMinInput.value = heightMin;
-    heightMaxInput.value = heightMax;
-    rebuildHeightLegend();
-
-    entData = [{ ents, color:'#e6194b', fileName:sourceName, enabled:true }];
-    buildLegend(); buildFilters(); buildZipCache(); scheduleDraw();
-  }
-
-  /* ============================================================= *
-   *  EVENT HANDLERS (unchanged)
-   * ============================================================= */
-  defaultMapSelect.addEventListener('change', async e=>{
-    const val = e.target.value;
-    if(val==='__custom'){
-      customJsonContainer.style.display='block';
-      return;
-    } else {
-      customJsonContainer.style.display='none';
+    // ──────────────────────────────────────────────────────────────
+    // 3) TINT HELPER
+    // ──────────────────────────────────────────────────────────────
+    function createTintedIcon(img, tintColor) {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const off = document.createElement('canvas');
+      off.width = w; off.height = h;
+      const octx = off.getContext('2d');
+      octx.drawImage(img, 0, 0, w, h);
+      octx.globalCompositeOperation = 'screen';
+      octx.fillStyle = tintColor;
+      octx.fillRect(0, 0, w, h);
+      octx.globalCompositeOperation = 'destination-in';
+      octx.drawImage(img, 0, 0, w, h);
+      octx.globalCompositeOperation = 'source-over';
+      return off;
     }
-    if(!val) return;
-    try {
-      const txt = await fetch(val).then(r=>r.ok?r.text():Promise.reject(r.status));
-      handleCombinedData(JSON.parse(txt), val.split('/').pop());
-    } catch(err){
-      alert('Could not load map: '+err);
-    }
-  });
 
-  combinedInput.addEventListener('change', e=>{
-    const f=e.target.files[0];
-    if(!f) return;
-    const r=new FileReader();
-    r.onload=()=> {
-      try { handleCombinedData(JSON.parse(r.result), f.name); }
-      catch(err){ alert('Invalid JSON: '+err); }
-    };
-    r.readAsText(f);
-  });
-
-  etConfigInput.addEventListener('click', ()=>etConfigInput.value='');
-  etConfigInput.addEventListener('change', e=>{
-    const f=e.target.files[0];
-    if(!f) return;
-    const r=new FileReader();
-    r.onload=()=>{
+    // ──────────────────────────────────────────────────────────────
+    // 4) LOAD DEFAULT MAP LIST
+    // ──────────────────────────────────────────────────────────────
+    async function loadDefaultList() {
       try {
-        entityTypeConfig = JSON.parse(r.result);
-        entityTypeFilters = entityTypeConfig.map(() => false);
-        Object.keys(iconCache).forEach(k => delete iconCache[k]);
-        Object.keys(tintedIconCache).forEach(k => delete tintedIconCache[k]);
-        entityTypeConfig.forEach((c,i)=>{
-          if(c.renderType==='icon'&&c.icon){
-            const img=new Image(); img.src=c.icon; iconCache[i]=img;
-            img.onload = ()=>{
-              if(c.tintColor) tintedIconCache[i]=createTintedIcon(img,c.tintColor);
-              scheduleDraw();
+        const res = await fetch('./maps/manifest.json');
+        if (!res.ok) throw new Error(res.statusText);
+        const list = await res.json();
+        list.forEach(({ name, file }) => {
+          const opt = document.createElement('option');
+          opt.value = `./maps/${file}`;
+          opt.textContent = name;
+          defaultMapSelect.appendChild(opt);
+        });
+        const customOpt = document.createElement('option');
+        customOpt.value = '__custom';
+        customOpt.textContent = 'Load custom JSON…';
+        defaultMapSelect.appendChild(customOpt);
+      } catch (err) {
+        console.warn('Could not load map manifest:', err);
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // 5) LOAD ENTITY-TYPES (with tint-cache)
+    // ──────────────────────────────────────────────────────────────
+    async function loadDefaultEntityTypes() {
+      try {
+        const res = await fetch('./entityTypes/entity-types.json');
+        if (!res.ok) throw new Error(res.statusText);
+        const list = await res.json();
+        entityTypeConfig = list;
+        entityTypeFilters = list.map(() => false);
+        // clear caches
+        for (const k in iconCache) delete iconCache[k];
+        for (const k in tintedIconCache) delete tintedIconCache[k];
+        // load icons & tinted versions
+        list.forEach((c, i) => {
+          if (c.renderType === 'icon' && c.icon) {
+            const img = new Image();
+            img.src = c.icon;
+            iconCache[i] = img;
+            img.onload = () => {
+              if (c.tintColor) {
+                tintedIconCache[i] = createTintedIcon(img, c.tintColor);
+                scheduleDraw();
+              }
             };
           }
         });
         buildEntityTypes();
-        scheduleDraw();
-      } catch(err){
-        alert('Invalid JSON: '+err);
+      } catch (err) {
+        console.warn('Could not load entity types:', err);
       }
-    };
-    r.readAsText(f);
-  });
-
-  /* ============================================================= *
-   *  UTILITIES (unchanged)
-   * ============================================================= */
-  function scheduleDraw(){
-    if(!needsRedraw){
-      needsRedraw=true;
-      requestAnimationFrame(()=>{ needsRedraw=false; drawAll(); });
     }
-  }
-  function worldToCanvas(x,y){
-    const px=(x - worldBounds.minX)/(worldBounds.maxX - worldBounds.minX)*canvas.width;
-    const py=(y - worldBounds.minY)/(worldBounds.maxY - worldBounds.minY)*canvas.height;
-    return {cx:px, cy:canvas.height-py};
-  }
-  function resizeCanvas(){
-    if(!mapImage) return;
-    const rect=canvas.parentElement.getBoundingClientRect();
-    canvas.width  = rect.width;
-    canvas.height = rect.width*(mapImage.naturalHeight/mapImage.naturalWidth);
-    scheduleDraw();
-  }
-  window.addEventListener('resize',resizeCanvas);
 
-  function heightToColour(h){
-    if(h<heightMin) return belowClr;
-    if(h>heightMax) return aboveClr;
-    const t=(h-heightMin)/(heightMax-heightMin);
-    const hue=240*(1-t);
-    return `hsl(${hue},100%,50%)`;
-  }
-  function rebuildHeightLegend(){
-    const grad=`linear-gradient(to right,
+    // ──────────────────────────────────────────────────────────────
+    // 6) HANDLE LOADED MAP+ENTITIES
+    // ──────────────────────────────────────────────────────────────
+    function handleCombinedData(data, sourceName) {
+      // background
+      mapImage = new Image();
+      mapImage.onload = () => {
+        transform.scale = 1;
+        transform.offsetX = transform.offsetY = 0;
+        resizeCanvases();
+      };
+      mapImage.src = 'data:image/png;base64,' + data.background_image;
+
+      // mapDef
+      const cfg = data.config;
+      mapDef = { posX: +cfg.pos_x, posY: +cfg.pos_y, scale: +cfg.scale };
+
+      // entities
+      const raw = Array.isArray(data.entities) ? data.entities : [];
+      let mn = Infinity, mx = -Infinity;
+      const ents = raw.filter(e => typeof e.origin === 'string').map(e => {
+        const props = { ...e };
+        const [x, y, z = 0] = props.origin.split(/\s+/).map(Number);
+        props.x = x; props.y = y; props.height = z;
+        mn = Math.min(mn, z);
+        mx = Math.max(mx, z);
+        return { x, y, h: z, props };
+      });
+      heightMin = Math.floor(mn);
+      heightMax = Math.ceil(mx);
+      heightMinInput.value = heightMin;
+      heightMaxInput.value = heightMax;
+      rebuildHeightLegend();
+
+      entData = [{ ents, color: '#e6194b', fileName: sourceName, enabled: true }];
+      buildLegend();
+      buildFilters();
+      buildZipCache();
+      scheduleDraw();
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // 7) EVENT HANDLERS: mapSelect, file inputs
+    // ──────────────────────────────────────────────────────────────
+    defaultMapSelect.addEventListener('change', async e => {
+      const v = e.target.value;
+      if (v === '__custom') {
+        customJsonContainer.style.display = 'block';
+        return;
+      } else {
+        customJsonContainer.style.display = 'none';
+      }
+      if (!v) return;
+      try {
+        const txt = await fetch(v).then(r => r.ok ? r.text() : Promise.reject(r.status));
+        handleCombinedData(JSON.parse(txt), v.split('/').pop());
+      } catch (err) {
+        alert('Could not load map: ' + err);
+      }
+    });
+    combinedInput.addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => { try { handleCombinedData(JSON.parse(r.result), f.name); } catch (e) { alert('Invalid JSON:' + e); } };
+      r.readAsText(f);
+    });
+    etConfigInput.addEventListener('click', () => etConfigInput.value = '');
+    etConfigInput.addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        try {
+          entityTypeConfig = JSON.parse(r.result);
+          entityTypeFilters = entityTypeConfig.map(() => false);
+          for (const k in iconCache) delete iconCache[k];
+          for (const k in tintedIconCache) delete tintedIconCache[k];
+          entityTypeConfig.forEach((c, i) => {
+            if (c.renderType === 'icon' && c.icon) {
+              const img = new Image();
+              img.src = c.icon;
+              iconCache[i] = img;
+              img.onload = () => {
+                if (c.tintColor) tintedIconCache[i] = createTintedIcon(img, c.tintColor);
+                scheduleDraw();
+              };
+            }
+          });
+          buildEntityTypes();
+          scheduleDraw();
+        } catch (err) {
+          alert('Invalid JSON:' + err);
+        }
+      };
+      r.readAsText(f);
+    });
+
+    // ──────────────────────────────────────────────────────────────
+    // 8) BUILD UI PANELS (entityTypes, legend, filters, zip)
+    // ──────────────────────────────────────────────────────────────
+    function buildEntityTypes() {
+      entityTypesDiv.innerHTML = '';
+      entityTypeConfig.forEach((c, i) => {
+        const lbl = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.onchange = () => { entityTypeFilters[i] = cb.checked; scheduleDraw(); };
+        lbl.append(cb, ' ', c.nickname);
+        entityTypesDiv.append(lbl);
+      });
+    }
+
+    function buildLegend() {
+      legendDiv.innerHTML = '';
+      entData.forEach(item => {
+        const lbl = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = item.enabled;
+        cb.onchange = () => { item.enabled = cb.checked; scheduleDraw(); };
+        const sw = document.createElement('span');
+        sw.style.cssText = 'width:14px;height:14px;display:inline-block;margin-right:8px;' +
+          'border:1px solid #999;background:' + item.color;
+        lbl.append(cb, sw, item.fileName);
+        legendDiv.append(lbl);
+      });
+    }
+
+    function buildFilters() {
+      filters = {}; missingFilters = {};
+      propertyKeys.forEach(k => { filters[k] = new Set(); missingFilters[k] = false; });
+      entData.forEach(d => d.ents.forEach(e => {
+        propertyKeys.forEach(k => { if (e.props[k]) filters[k].add(e.props[k]); });
+      }));
+      filtersDiv.innerHTML = '';
+      propertyKeys.forEach(key => {
+        const fg = document.createElement('div');
+        fg.className = 'filter-group';
+        fg.append(Object.assign(document.createElement('strong'), { textContent: key }));
+        // all checkbox
+        const allCB = document.createElement('input');
+        allCB.type = 'checkbox';
+        const allLbl = document.createElement('label');
+        allLbl.append(allCB, ' All');
+        allCB.onchange = () => {
+          fg.querySelectorAll('input[data-val]').forEach(ch => {
+            ch.checked = allCB.checked;
+            ch.checked ? filters[key].add(ch.dataset.val) : filters[key].delete(ch.dataset.val);
+          });
+          scheduleDraw();
+        };
+        fg.append(allLbl);
+        // missing checkbox
+        const missCB = document.createElement('input');
+        missCB.type = 'checkbox';
+        const missLbl = document.createElement('label');
+        missLbl.append(missCB, ' Missing');
+        missCB.onchange = () => { missingFilters[key] = missCB.checked; scheduleDraw(); };
+        fg.append(missLbl);
+        // search
+        const search = document.createElement('input');
+        search.type = 'text';
+        search.placeholder = `Search ${key}`;
+        search.oninput = () => {
+          const t = search.value.toLowerCase();
+          fg.querySelectorAll('label[data-val]').forEach(l => {
+            l.style.display = l.textContent.toLowerCase().includes(t) ? 'block' : 'none';
+          });
+        };
+        fg.append(search);
+        // each value
+        [...filters[key]].sort().forEach(v => {
+          const lbl = document.createElement('label');
+          lbl.dataset.val = v;
+          const cb = document.createElement('input');
+          cb.type = 'checkbox'; cb.dataset.val = v;
+          cb.onchange = () => { cb.checked ? filters[key].add(v) : filters[key].delete(v); scheduleDraw(); };
+          lbl.append(cb, ' ', v);
+          fg.append(lbl);
+        });
+        filtersDiv.append(fg);
+      });
+    }
+
+    function buildZipCache() {
+      zipSegments = []; const tmp = {};
+      entData.forEach(d => d.ents.forEach(e => {
+        if (e.props.classname === 'zipline') tmp[e.props.link_guid] = { start: e, end: null };
+      }));
+      entData.forEach(d => d.ents.forEach(e => {
+        if (e.props.classname === 'zipline_end' && tmp[e.props.link_guid])
+          tmp[e.props.link_guid].end = e;
+      }));
+      Object.values(tmp).forEach(z => {
+        if (!z.start) return;
+        const seg = [{ x: z.start.x, y: z.start.y }];
+        Object.entries(z.start.props).forEach(([k, v]) => {
+          const m = k.match(/_zipline_rest_point_(\d+)/);
+          if (m) {
+            const [rx, ry] = v.split(/\s+/).map(Number);
+            seg.push({ idx: +m[1], x: rx, y: ry });
+          }
+        });
+        seg.sort((a, b) => a.idx - b.idx);
+        if (z.end) seg.push({ x: z.end.x, y: z.end.y });
+        if (seg.length > 1) zipSegments.push(seg);
+      });
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // 9) HEIGHT LEGEND
+    // ──────────────────────────────────────────────────────────────
+    function rebuildHeightLegend() {
+      const grad = `linear-gradient(to right,
       ${belowClr} 0%,
       ${heightToColour(heightMin)} 0%,
       ${heightToColour(heightMax)} 100%,
       ${aboveClr} 100%)`;
-    heightLegend.innerHTML=''; 
-    const bar=document.createElement('div');
-    bar.style.cssText='height:18px;background:'+grad+';border:1px solid #555;margin-bottom:4px';
-    heightLegend.append(bar);
-    const lbl=document.createElement('div');
-    lbl.style.cssText='display:flex;justify-content:space-between;font-size:0.75em;color:#aaa';
-    lbl.innerHTML=`<span>&lt;${heightMin}</span><span>${heightMin}</span>
+      heightLegend.innerHTML = '';
+      const bar = document.createElement('div');
+      bar.style.cssText = 'height:18px;background:' + grad + ';border:1px solid #555;margin-bottom:4px';
+      heightLegend.append(bar);
+      const lbl = document.createElement('div');
+      lbl.style.cssText = 'display:flex;justify-content:space-between;font-size:0.75em;color:#aaa';
+      lbl.innerHTML = `<span>&lt;${heightMin}</span><span>${heightMin}</span>
                    <span>${heightMax}</span><span>&gt;${heightMax}</span>`;
-    heightLegend.append(lbl);
-  }
+      heightLegend.append(lbl);
+    }
 
-  function buildZipCache(){
-    zipSegments=[]; const tmp={};
-    entData.forEach(d=>d.ents.forEach(e=>{
-      if(e.props.classname==='zipline') tmp[e.props.link_guid]={start:e,end:null};
-    }));
-    entData.forEach(d=>d.ents.forEach(e=>{
-      if(e.props.classname==='zipline_end'&&tmp[e.props.link_guid]) tmp[e.props.link_guid].end=e;
-    }));
-    Object.values(tmp).forEach(z=>{
-      if(!z.start) return;
-      const seg=[{x:z.start.x,y:z.start.y}];
-      Object.entries(z.start.props).forEach(([k,v])=>{
-        const m=k.match(/_zipline_rest_point_(\d+)/);
-        if(m){ const [rx,ry]=v.split(/\s+/).map(Number); seg.push({idx:+m[1],x:rx,y:ry}); }
-      });
-      seg.sort((a,b)=>a.idx-b.idx);
-      if(z.end) seg.push({x:z.end.x,y:z.end.y});
-      if(seg.length>1) zipSegments.push(seg);
-    });
-  }
+    function heightToColour(h) {
+      if (h < heightMin) return belowClr;
+      if (h > heightMax) return aboveClr;
+      const t = (h - heightMin) / (heightMax - heightMin);
+      const hue = 240 * (1 - t);
+      return `hsl(${hue},100%,50%)`;
+    }
 
-  function buildEntityTypes(){
-    entityTypesDiv.innerHTML='';
-    entityTypeConfig.forEach((c,i)=>{
-      const lbl=document.createElement('label');
-      const cb = document.createElement('input');
-      cb.type='checkbox';
-      cb.onchange=()=>{ entityTypeFilters[i]=cb.checked; scheduleDraw(); };
-      lbl.append(cb,' ',c.nickname);
-      entityTypesDiv.append(lbl);
-    });
-  }
-
-  function buildLegend(){
-    legendDiv.innerHTML='';
-    entData.forEach(item=>{
-      const lbl=document.createElement('label');
-      const cb = document.createElement('input');
-      cb.type='checkbox'; cb.checked=item.enabled;
-      cb.onchange=()=>{ item.enabled=cb.checked; scheduleDraw(); };
-      const sw=document.createElement('span');
-      sw.style.cssText='width:14px;height:14px;display:inline-block;margin-right:8px;'+
-                       'border:1px solid #999;background:'+item.color;
-      lbl.append(cb,sw,item.fileName);
-      legendDiv.append(lbl);
-    });
-  }
-
-  function buildFilters(){
-    filters={}; missingFilters={};
-    propertyKeys.forEach(k=>{ filters[k]=new Set(); missingFilters[k]=false });
-    entData.forEach(d=>d.ents.forEach(e=>{
-      propertyKeys.forEach(k=>{ if(e.props[k]) filters[k].add(e.props[k]); });
-    }));
-    filtersDiv.innerHTML='';
-    propertyKeys.forEach(key=>{
-      const fg=document.createElement('div'); fg.className='filter-group';
-      fg.append(Object.assign(document.createElement('strong'),{textContent:key}));
-
-      const allCB=document.createElement('input'); allCB.type='checkbox';
-      const allLbl=document.createElement('label'); allLbl.append(allCB,' All');
-      allCB.onchange=()=>{
-        fg.querySelectorAll('input[data-val]').forEach(ch=>{
-          ch.checked = allCB.checked;
-          ch.checked ? filters[key].add(ch.dataset.val) : filters[key].delete(ch.dataset.val);
+    // ──────────────────────────────────────────────────────────────
+    // 10) DRAW ALL (map + entities + tinted icons)
+    // ──────────────────────────────────────────────────────────────
+    function scheduleDraw() {
+      if (!needsRedraw) {
+        needsRedraw = true;
+        requestAnimationFrame(() => {
+          needsRedraw = false;
+          drawAll();
         });
-        scheduleDraw();
+      }
+    }
+
+    function worldToCanvas(x, y) {
+      const px = (x - worldBounds.minX) / (worldBounds.maxX - worldBounds.minX) * mapCanvas.width;
+      const py = (y - worldBounds.minY) / (worldBounds.maxY - worldBounds.minY) * mapCanvas.height;
+      return { cx: px, cy: mapCanvas.height - py };
+    }
+
+    function resizeCanvases() {
+      if (!mapImage) return;
+      const rect = mapCanvas.parentElement.getBoundingClientRect();
+      [mapCanvas, drawingCanvas].forEach(c => {
+        c.width = rect.width;
+        c.height = rect.width * (mapImage.naturalHeight / mapImage.naturalWidth);
+      });
+      fabricCanvas.setWidth(mapCanvas.width);
+      fabricCanvas.setHeight(mapCanvas.height);
+      scheduleDraw();
+    }
+    window.addEventListener('resize', resizeCanvases);
+
+    function drawAll() {
+      if (!mapImage || !mapDef) return;
+
+      // recompute worldBounds
+      const { posX, posY, scale } = mapDef;
+      worldBounds = {
+        minX: posX,
+        maxX: posX + mapImage.naturalWidth * scale,
+        minY: posY - mapImage.naturalHeight * scale,
+        maxY: posY
       };
-      fg.append(allLbl);
 
-      const missCB=document.createElement('input'); missCB.type='checkbox';
-      const missLbl=document.createElement('label'); missLbl.append(missCB,' Missing');
-      missCB.onchange=()=>{ missingFilters[key]=missCB.checked; scheduleDraw(); };
-      fg.append(missLbl);
+      // draw base map
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+      ctx.translate(transform.offsetX, transform.offsetY);
+      ctx.scale(transform.scale, transform.scale);
+      ctx.drawImage(mapImage, 0, 0, mapCanvas.width, mapCanvas.height);
 
-      const search=document.createElement('input');
-      search.type='text'; search.placeholder=`Search ${key}`;
-      search.oninput=()=>{
-        const t=search.value.toLowerCase();
-        fg.querySelectorAll('label[data-val]').forEach(l=>{
-          l.style.display = l.textContent.toLowerCase().includes(t)?'block':'none';
+      // draw height‐coloured dots
+      entData.forEach(item => {
+        if (!item.enabled) return;
+        item.ents.forEach(e => {
+          if (entityIsSkipped(e)) return;
+          if (hideOutOfRange && (e.h < heightMin || e.h > heightMax)) return;
+          const { cx, cy } = worldToCanvas(e.x, e.y);
+          ctx.fillStyle = heightToColour(e.h);
+          ctx.beginPath(); ctx.arc(cx, cy, 5 / transform.scale, 0, 2 * Math.PI); ctx.fill();
         });
-      };
-      fg.append(search);
-
-      [...filters[key]].sort().forEach(v=>{
-        const lbl=document.createElement('label'); lbl.dataset.val=v;
-        const cb=document.createElement('input'); cb.type='checkbox'; cb.dataset.val=v;
-        cb.onchange=()=>{ cb.checked?filters[key].add(v):filters[key].delete(v); scheduleDraw(); };
-        lbl.append(cb,' ',v);
-        fg.append(lbl);
       });
 
-      filtersDiv.append(fg);
-    });
-  }
-
-  function updateLimits(){
-    const min=parseFloat(heightMinInput.value), max=parseFloat(heightMaxInput.value);
-    if(!isFinite(min)||!isFinite(max)||min>=max) return;
-    heightMin=min; heightMax=max; rebuildHeightLegend(); scheduleDraw();
-  }
-  heightMinInput.addEventListener('change',updateLimits);
-  heightMaxInput.addEventListener('change',updateLimits);
-  hideOutCB.addEventListener('change',()=>{ hideOutOfRange=hideOutCB.checked; scheduleDraw(); });
-
-  function entityIsSkipped(e){
-    return propertyKeys.some(k=>{
-      if(filters[k].size===0 && !missingFilters[k]) return false;
-      const v=e.props[k];
-      if(v!==undefined&&v!=='') return !filters[k].has(v);
-      return !missingFilters[k];
-    });
-  }
-
-  /* ============================================================= *
-   *  DRAW EVERYTHING (with tinted icons)
-   * ============================================================= */
-  function drawAll(){
-    if(!mapImage||!mapDef) return;
-    const {posX,posY,scale} = mapDef;
-    worldBounds = {
-      minX: posX,
-      maxX: posX + mapImage.naturalWidth*scale,
-      minY: posY - mapImage.naturalHeight*scale,
-      maxY: posY
-    };
-
-    // reset & base map
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.translate(transform.offsetX,transform.offsetY);
-    ctx.scale(transform.scale,transform.scale);
-    ctx.drawImage(mapImage,0,0,canvas.width,canvas.height);
-
-    // height‐coloured dots
-    entData.forEach(item=>{
-      if(!item.enabled) return;
-      item.ents.forEach(e=>{
-        if(entityIsSkipped(e)) return;
-        if(hideOutOfRange&&(e.h<heightMin||e.h>heightMax)) return;
-        const {cx,cy}=worldToCanvas(e.x,e.y);
-        ctx.fillStyle=heightToColour(e.h);
-        ctx.beginPath(); ctx.arc(cx,cy,5/transform.scale,0,2*Math.PI); ctx.fill();
-      });
-    });
-
-    // ziplines (unchanged)
-    const zipIdx = entityTypeConfig.findIndex(c=>c.renderType==='zipline');
-    if(zipIdx>-1 && entityTypeFilters[zipIdx]){
-      const cfg=entityTypeConfig[zipIdx];
-      ctx.strokeStyle=cfg.color||'orange';
-      ctx.lineWidth=(cfg.lineWidth||2)/transform.scale;
-      zipSegments.forEach(seg=>{
-        ctx.beginPath();
-        seg.forEach((p,i)=>{
-          const {cx,cy}=worldToCanvas(p.x,p.y);
-          i?ctx.lineTo(cx,cy):ctx.moveTo(cx,cy);
+      // draw ziplines
+      const zipIdx = entityTypeConfig.findIndex(c => c.renderType === 'zipline');
+      if (zipIdx > -1 && entityTypeFilters[zipIdx]) {
+        const cfg = entityTypeConfig[zipIdx];
+        ctx.strokeStyle = cfg.color || 'orange';
+        ctx.lineWidth = (cfg.lineWidth || 2) / transform.scale;
+        zipSegments.forEach(seg => {
+          ctx.beginPath();
+          seg.forEach((p, i) => {
+            const { cx, cy } = worldToCanvas(p.x, p.y);
+            i ? ctx.lineTo(cx, cy) : ctx.moveTo(cx, cy);
+          });
+          ctx.stroke();
         });
-        ctx.stroke();
+      }
+
+      // draw other entity‐types (including tinted icons)
+      entityTypeConfig.forEach((c, i) => {
+        if (i === zipIdx || !entityTypeFilters[i]) return;
+        entData.forEach(item => {
+          if (!item.enabled) return;
+          item.ents.forEach(e => {
+            let pv = e.props[c.field] || '';
+            if (c.valueRegex) {
+              if (!new RegExp(c.valueRegex).test(pv)) return;
+            } else if (c.value !== undefined) {
+              if (pv !== c.value) return;
+            }
+            const { cx, cy } = worldToCanvas(e.x, e.y);
+            const sx = cx * transform.scale + transform.offsetX;
+            const sy = cy * transform.scale + transform.offsetY;
+
+            // ICON with tint
+            if (c.renderType === 'icon' && iconCache[i] && iconCache[i].complete) {
+              const sz = c.size || 24;
+              ctx.setTransform(1, 0, 0, 1, 0, 0);
+              const src = (c.tintColor && tintedIconCache[i])
+                ? tintedIconCache[i]
+                : iconCache[i];
+              ctx.drawImage(src, sx - sz / 2, sy - sz / 2, sz, sz);
+
+              // CIRCLE
+            } else if (c.renderType === 'circle') {
+              const rW = c.radiusField
+                ? parseFloat(e.props[c.radiusField] || 0)
+                : parseFloat(c.radius || 0);
+              if (!rW) return;
+              const basePx = (rW / (worldBounds.maxX - worldBounds.minX)) * mapCanvas.width;
+              const rpx = basePx * transform.scale;
+              ctx.setTransform(1, 0, 0, 1, 0, 0);
+              ctx.fillStyle = c.fillColor || 'rgba(255,0,0,0.25)';
+              ctx.strokeStyle = c.strokeColor || '#ff4444';
+              ctx.lineWidth = (c.strokeWidth || 2) / transform.scale;
+              ctx.beginPath(); ctx.arc(sx, sy, rpx, 0, 2 * Math.PI);
+              ctx.fill(); ctx.stroke();
+
+              // DOT
+            } else if (c.renderType === 'dot') {
+              const or = c.outerRadius || 8, ir = c.innerRadius || 4;
+              ctx.setTransform(1, 0, 0, 1, 0, 0);
+              ctx.fillStyle = c.outerColor || 'lime';
+              ctx.beginPath(); ctx.arc(sx, sy, or, 0, 2 * Math.PI); ctx.fill();
+              if (c.innerColor) {
+                ctx.fillStyle = c.innerColor;
+                ctx.beginPath(); ctx.arc(sx, sy, ir, 0, 2 * Math.PI); ctx.fill();
+              }
+
+              // TEXT
+            } else if (c.renderType === 'text') {
+              let txt = c.textField
+                ? (e.props[c.textField] || '')
+                : (c.text || '');
+              if (!txt) return;
+              if (c.regexFind) txt = txt.replace(new RegExp(c.regexFind, 'g'), c.regexReplace || '');
+              if (c.replaceUnderscores) txt = txt.replace(/_/g, ' ');
+              if (c.case === 'upper') txt = txt.toUpperCase();
+              else if (c.case === 'lower') txt = txt.toLowerCase();
+              else if (c.case === 'title') txt = txt.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1));
+
+              ctx.setTransform(1, 0, 0, 1, 0, 0);
+              const base = c.fontSize || 14;
+              const fs = c.scaleWithZoom ? base * transform.scale : base;
+              ctx.font = `${fs}px ${c.fontFamily || 'Arial'}`;
+              ctx.fillStyle = c.textColor || '#fff';
+              ctx.textAlign = c.textAlign || 'center';
+              ctx.textBaseline = c.textBaseline || 'middle';
+              ctx.fillText(txt, sx + (c.offsetX || 0), sy + (c.offsetY || 0));
+            }
+          });
+        });
       });
     }
 
-    // other types (including icon+tint)
-    entityTypeConfig.forEach((c,i)=>{
-      if(i===zipIdx||!entityTypeFilters[i]) return;
-      entData.forEach(item=>{
-        if(!item.enabled) return;
-        item.ents.forEach(e=>{
-          let pv=e.props[c.field]||'';
-          if(c.valueRegex){
-            if(!new RegExp(c.valueRegex).test(pv)) return;
-          } else if(c.value!==undefined){
-            if(pv!==c.value) return;
+    // ──────────────────────────────────────────────────────────────
+    // 11) TOOLTIP
+    // ──────────────────────────────────────────────────────────────
+    mapCanvas.addEventListener('mousemove', e => {
+      const mx = e.offsetX, my = e.offsetY;
+      const cX = (mx - transform.offsetX) / transform.scale;
+      const cY = (my - transform.offsetY) / transform.scale;
+      let found = null, r = 5 / transform.scale;
+      outer: for (const item of entData) {
+        if (!item.enabled) continue;
+        for (const ent of item.ents) {
+          if (entityIsSkipped(ent)) continue;
+          if (hideOutOfRange && (ent.h < heightMin || ent.h > heightMax)) continue;
+          const { cx, cy } = worldToCanvas(ent.x, ent.y);
+          if ((cX - cx) ** 2 + (cY - cy) ** 2 < r * r) {
+            found = ent; break outer;
           }
-          const {cx,cy}=worldToCanvas(e.x,e.y);
-          const sx = cx*transform.scale + transform.offsetX;
-          const sy = cy*transform.scale + transform.offsetY;
-
-          // ── ICON with tint support ─────────────────────────────────
-          if(c.renderType==='icon' && iconCache[i] && iconCache[i].complete){
-            const sz = c.size||24;
-            ctx.setTransform(1,0,0,1,0,0);
-
-            // pick our tinted canvas if we have it
-            const src = (c.tintColor && tintedIconCache[i])
-                        ? tintedIconCache[i]
-                        : iconCache[i];
-
-            ctx.drawImage(src, sx - sz/2, sy - sz/2, sz, sz);
-
-          // ── other renderTypes unchanged ─────────────────────────────
-          } else if(c.renderType==='circle'){
-            const rW = c.radiusField
-                      ? parseFloat(e.props[c.radiusField]||0)
-                      : parseFloat(c.radius||0);
-            if(!rW) return;
-            const basePx = (rW/(worldBounds.maxX-worldBounds.minX))*canvas.width;
-            const rpx    = basePx*transform.scale;
-            ctx.setTransform(1,0,0,1,0,0);
-            ctx.fillStyle   = c.fillColor||'rgba(255,0,0,0.25)';
-            ctx.strokeStyle = c.strokeColor||'#ff4444';
-            ctx.lineWidth   = (c.strokeWidth||2)/transform.scale;
-            ctx.beginPath(); ctx.arc(sx,sy,rpx,0,2*Math.PI);
-            ctx.fill(); ctx.stroke();
-
-          } else if(c.renderType==='dot'){
-            const or=c.outerRadius||8, ir=c.innerRadius||4;
-            ctx.setTransform(1,0,0,1,0,0);
-            ctx.fillStyle = c.outerColor||'lime';
-            ctx.beginPath(); ctx.arc(sx,sy,or,0,2*Math.PI); ctx.fill();
-            if(c.innerColor){
-              ctx.fillStyle = c.innerColor;
-              ctx.beginPath(); ctx.arc(sx,sy,ir,0,2*Math.PI); ctx.fill();
-            }
-
-          } else if(c.renderType==='text'){
-            let txt = c.textField
-                      ? (e.props[c.textField]||'')
-                      : (c.text||'');
-            if(!txt) return;
-            if(c.regexFind) txt = txt.replace(new RegExp(c.regexFind,'g'),c.regexReplace||'');
-            if(c.replaceUnderscores) txt = txt.replace(/_/g,' ');
-            if(c.case==='upper') txt=txt.toUpperCase();
-            else if(c.case==='lower') txt=txt.toLowerCase();
-            else if(c.case==='title') txt=txt.replace(/\w\S*/g,w=>w[0].toUpperCase()+w.slice(1));
-
-            ctx.setTransform(1,0,0,1,0,0);
-            const base = c.fontSize||14;
-            const fs   = c.scaleWithZoom?base*transform.scale:base;
-            ctx.font         = `${fs}px ${c.fontFamily||'Arial'}`;
-            ctx.fillStyle    = c.textColor||'#fff';
-            ctx.textAlign    = c.textAlign||'center';
-            ctx.textBaseline = c.textBaseline||'middle';
-            ctx.fillText(txt, sx+(c.offsetX||0), sy+(c.offsetY||0));
-          }
-        });
-      });
-    });
-  }
-
-  /* ============================================================= *
-   *  TOOLTIP, PAN & ZOOM (unchanged)
-   * ============================================================= */
-  canvas.addEventListener('mousemove',e=>{
-    const mx=e.offsetX, my=e.offsetY;
-    const cX=(mx-transform.offsetX)/transform.scale;
-    const cY=(my-transform.offsetY)/transform.scale;
-    let found=null, r=5/transform.scale;
-
-    outer: for(const item of entData){
-      if(!item.enabled) continue;
-      for(const ent of item.ents){
-        if(entityIsSkipped(ent)) continue;
-        if(hideOutOfRange&&(ent.h<heightMin||ent.h>heightMax)) continue;
-        const {cx,cy}=worldToCanvas(ent.x,ent.y);
-        if((cX-cx)**2+(cY-cy)**2<r*r){
-          found=ent; break outer;
         }
       }
-    }
-
-    if(found){
-      tooltip.style.display='block';
-      tooltip.style.left = (mx+10)+'px';
-      tooltip.style.top  = (my+10)+'px';
-      tooltip.innerHTML  = Object.entries(found.props)
-        .map(([k,v])=>`<strong>${k}</strong>: ${typeof v==='object'?JSON.stringify(v):v}`)
-        .join('<br>');
-    } else {
-      tooltip.style.display='none';
-    }
-  });
-
-  ['wheel','mousedown','mousemove','mouseup','mouseleave'].forEach(evt=>{
-    canvas.addEventListener(evt,e=>{
-      if(evt==='wheel'){
-        e.preventDefault();
-        const f = e.deltaY<0?1.1:0.9;
-        const ns=transform.scale*f;
-        transform.offsetX = e.offsetX-(e.offsetX-transform.offsetX)*(ns/transform.scale);
-        transform.offsetY = e.offsetY-(e.offsetY-transform.offsetY)*(ns/transform.scale);
-        transform.scale = ns; scheduleDraw();
-      } else if(evt==='mousedown'){
-        isDragging=true;
-        dragStart.x=e.clientX-transform.offsetX;
-        dragStart.y=e.clientY-transform.offsetY;
-        canvas.style.cursor='grabbing';
-      } else if(evt==='mousemove'&&isDragging){
-        transform.offsetX=e.clientX-dragStart.x;
-        transform.offsetY=e.clientY-dragStart.y;
-        scheduleDraw();
-      } else if(evt==='mouseup'||evt==='mouseleave'){
-        isDragging=false; canvas.style.cursor='grab';
+      if (found) {
+        tooltip.style.display = 'block';
+        tooltip.style.left = (mx + 10) + 'px';
+        tooltip.style.top = (my + 10) + 'px';
+        tooltip.innerHTML = Object.entries(found.props)
+          .map(([k, v]) => `<strong>${k}</strong>: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+          .join('<br>');
+      } else {
+        tooltip.style.display = 'none';
       }
     });
-  });
 
-  /* ============================================================= *
-   *  KICK-OFF
-   * ============================================================= */
-  loadDefaultList();
-  loadDefaultEntityTypes();
+    function attachMapPan(el) {
+      let isDragging = false, dragStart = { x: 0, y: 0 };
+
+      // ZOOM
+      el.addEventListener('wheel', e => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.1 : 0.9;
+        const newScale = transform.scale * factor;
+        transform.offsetX = e.offsetX - (e.offsetX - transform.offsetX) * (newScale / transform.scale);
+        transform.offsetY = e.offsetY - (e.offsetY - transform.offsetY) * (newScale / transform.scale);
+        transform.scale = newScale;
+
+        // ✏️ sync to Fabric…
+        fabricCanvas.viewportTransform = [
+          transform.scale, 0,
+          0, transform.scale,
+          transform.offsetX, transform.offsetY
+        ];
+        fabricCanvas.requestRenderAll();
+
+        scheduleDraw();
+      }, { passive: false });
+
+      // START DRAG
+      el.addEventListener('mousedown', e => {
+        // if I clicked *on* a Fabric object, bail out
+        // (only do pan when clicking empty space)
+        if (el === drawingCanvas && fabricCanvas.findTarget(e)) {
+          return;
+        }
+        isDragging = true;
+        dragStart.x = e.clientX - transform.offsetX;
+        dragStart.y = e.clientY - transform.offsetY;
+        el.style.cursor = 'grabbing';
+      });
+
+      // DURING DRAG
+      el.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        transform.offsetX = e.clientX - dragStart.x;
+        transform.offsetY = e.clientY - dragStart.y;
+
+        // ✏️ sync to Fabric…
+        fabricCanvas.viewportTransform = [
+          transform.scale, 0,
+          0, transform.scale,
+          transform.offsetX, transform.offsetY
+        ];
+        fabricCanvas.requestRenderAll();
+
+        scheduleDraw();
+      });
+
+      // END DRAG
+      ['mouseup', 'mouseleave'].forEach(evt => {
+        el.addEventListener(evt, () => {
+          isDragging = false;
+          el.style.cursor = 'grab';
+        });
+      });
+    }
+
+    // wire it up
+    [mapCanvas, drawingCanvas].forEach(attachMapPan);
+
+
+
+    // ──────────────────────────────────────────────────────────────
+    // 13) DRAWING TOOLBAR HANDLERS
+    // ──────────────────────────────────────────────────────────────
+    // switch to selection
+    $('selectBtn').onclick = () => {
+      fabricCanvas.isDrawingMode = false;
+      fabricCanvas.selection = true;
+      fabricCanvas.forEachObject(o => o.selectable = true);
+    };
+    // rectangle
+    $('rectBtn').onclick = () => {
+      fabricCanvas.isDrawingMode = false;
+      const r = new fabric.Rect({
+        left: 50, top: 50, width: 100, height: 60,
+        fill: 'rgba(0,0,0,0)', stroke: '#000', strokeWidth: 2
+      });
+      fabricCanvas.add(r).setActiveObject(r);
+    };
+    // circle
+    $('circleBtn').onclick = () => {
+      fabricCanvas.isDrawingMode = false;
+      const c = new fabric.Circle({
+        left: 80, top: 80, radius: 40,
+        fill: 'rgba(0,0,0,0)', stroke: '#000', strokeWidth: 2
+      });
+      fabricCanvas.add(c).setActiveObject(c);
+    };
+    // ellipse
+    $('ellipseBtn').onclick = () => {
+      fabricCanvas.isDrawingMode = false;
+      const e = new fabric.Ellipse({
+        left: 100, top: 100, rx: 60, ry: 30,
+        fill: 'rgba(0,0,0,0)', stroke: '#000', strokeWidth: 2
+      });
+      fabricCanvas.add(e).setActiveObject(e);
+    };
+    // freehand
+    $('pencilBtn').onclick = () => {
+      fabricCanvas.isDrawingMode = true;
+      fabricCanvas.freeDrawingBrush.width = 2;
+      fabricCanvas.freeDrawingBrush.color = '#000';
+    };
+    // text
+    $('textBtn').onclick = () => {
+      fabricCanvas.isDrawingMode = false;
+      const t = new fabric.IText('Edit me', { left: 120, top: 120, fontSize: 20, fill: '#000' });
+      fabricCanvas.add(t).setActiveObject(t);
+    };
+    // arrow
+    $('arrowBtn').onclick = () => {
+      fabricCanvas.isDrawingMode = false;
+      const pts = [10, 10, 100, 10];
+      const l = new fabric.Line(pts, { stroke: '#000', strokeWidth: 2, selectable: false });
+      const tri = new fabric.Triangle({
+        left: 100, top: 5, width: 10, height: 10,
+        fill: '#000', angle: 90, selectable: false
+      });
+      const arrow = new fabric.Group([l, tri], { left: 10, top: 10, angle: 0 });
+      fabricCanvas.add(arrow).setActiveObject(arrow);
+    };
+    // image upload
+    $('imageInput').addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = evt => {
+        fabric.Image.fromURL(evt.target.result, img => {
+          img.set({ left: 50, top: 50, scaleX: 0.5, scaleY: 0.5 });
+          fabricCanvas.add(img).setActiveObject(img);
+        });
+      };
+      r.readAsDataURL(f);
+    });
+    // group
+    $('groupBtn').onclick = () => {
+      const sel = fabricCanvas.getActiveObjects();
+      if (sel.length > 1) {
+        const grp = new fabric.Group(sel);
+        fabricCanvas.discardActiveObject();
+        fabricCanvas.add(grp).setActiveObject(grp);
+      }
+    };
+    // ungroup
+    $('ungroupBtn').onclick = () => {
+      const obj = fabricCanvas.getActiveObject();
+      if (obj && obj.type === 'group') {
+        obj.toActiveSelection();
+        fabricCanvas.requestRenderAll();
+      }
+    };
+    // z-order
+    $('bringForwardBtn').onclick = () => fabricCanvas.getActiveObject()?.bringForward();
+    $('sendBackwardBtn').onclick = () => fabricCanvas.getActiveObject()?.sendBackwards();
+
+
+    // skip filter check
+    function entityIsSkipped(e) {
+      return propertyKeys.some(k => {
+        if (filters[k].size === 0 && !missingFilters[k]) return false;
+        const v = e.props[k];
+        if (v !== undefined && v !== '') return !filters[k].has(v);
+        return !missingFilters[k];
+      });
+    }
+
+    // kick off
+    loadDefaultList();
+    loadDefaultEntityTypes();
   </script>
 </body>
+
 </html>
