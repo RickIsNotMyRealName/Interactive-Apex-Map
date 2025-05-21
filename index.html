@@ -148,6 +148,13 @@
       preserveObjectStacking: true
     });
 
+    attachMapPan(fabricCanvas.upperCanvasEl);
+
+    fabricCanvas.on('mouse:down', opt => {
+      console.log('Fabric click test →', opt.target ? opt.target.type : '<nothing>');
+    });
+
+
     // ──────────────────────────────────────────────────────────────
     // 3) TINT HELPER
     // ──────────────────────────────────────────────────────────────
@@ -481,14 +488,26 @@
     function resizeCanvases() {
       if (!mapImage) return;
       const rect = mapCanvas.parentElement.getBoundingClientRect();
-      [mapCanvas, drawingCanvas].forEach(c => {
-        c.width = rect.width;
-        c.height = rect.width * (mapImage.naturalHeight / mapImage.naturalWidth);
-      });
-      fabricCanvas.setWidth(mapCanvas.width);
-      fabricCanvas.setHeight(mapCanvas.height);
+      const w = rect.width;
+      const h = rect.width * (mapImage.naturalHeight / mapImage.naturalWidth);
+
+      // ① resize your two HTML canvases
+      mapCanvas.width = w;
+      mapCanvas.height = h;
+      drawingCanvas.width = w;
+      drawingCanvas.height = h;
+
+      // ② tell Fabric the new size
+      fabricCanvas.setWidth(w);
+      fabricCanvas.setHeight(h);
+
+      // ③ IMPORTANT: recalc Fabric’s pointer offsets & render
+      fabricCanvas.calcOffset();
+      fabricCanvas.requestRenderAll();
+
       scheduleDraw();
     }
+
     window.addEventListener('resize', resizeCanvases);
 
     function drawAll() {
@@ -647,35 +666,31 @@
     });
 
     function attachMapPan(el) {
-      let isDragging = false, dragStart = { x: 0, y: 0 };
+      let isDragging = false;
+      let dragStart = { x: 0, y: 0 };
 
       // ZOOM
       el.addEventListener('wheel', e => {
         e.preventDefault();
         const factor = e.deltaY < 0 ? 1.1 : 0.9;
-        const newScale = transform.scale * factor;
-        transform.offsetX = e.offsetX - (e.offsetX - transform.offsetX) * (newScale / transform.scale);
-        transform.offsetY = e.offsetY - (e.offsetY - transform.offsetY) * (newScale / transform.scale);
-        transform.scale = newScale;
-
-        // ✏️ sync to Fabric…
-        fabricCanvas.viewportTransform = [
-          transform.scale, 0,
-          0, transform.scale,
-          transform.offsetX, transform.offsetY
-        ];
-        fabricCanvas.requestRenderAll();
-
+        const zoom = fabricCanvas.getZoom() * factor;
+        fabricCanvas.zoomToPoint(
+          new fabric.Point(e.offsetX, e.offsetY),
+          zoom
+        );
+        // sync our transform state
+        const vpt = fabricCanvas.viewportTransform;
+        transform.scale = vpt[0];
+        transform.offsetX = vpt[4];
+        transform.offsetY = vpt[5];
         scheduleDraw();
       }, { passive: false });
 
       // START DRAG
       el.addEventListener('mousedown', e => {
-        // if I clicked *on* a Fabric object, bail out
-        // (only do pan when clicking empty space)
-        if (el === drawingCanvas && fabricCanvas.findTarget(e)) {
-          return;
-        }
+        // if Fabric sees a target here, bail out
+        if (fabricCanvas.findTarget(e)) return;
+
         isDragging = true;
         dragStart.x = e.clientX - transform.offsetX;
         dragStart.y = e.clientY - transform.offsetY;
@@ -685,31 +700,27 @@
       // DURING DRAG
       el.addEventListener('mousemove', e => {
         if (!isDragging) return;
-        transform.offsetX = e.clientX - dragStart.x;
-        transform.offsetY = e.clientY - dragStart.y;
-
-        // ✏️ sync to Fabric…
-        fabricCanvas.viewportTransform = [
-          transform.scale, 0,
-          0, transform.scale,
-          transform.offsetX, transform.offsetY
-        ];
-        fabricCanvas.requestRenderAll();
-
+        fabricCanvas.relativePan(
+          new fabric.Point(e.movementX, e.movementY)
+        );
+        const vpt = fabricCanvas.viewportTransform;
+        transform.scale = vpt[0];
+        transform.offsetX = vpt[4];
+        transform.offsetY = vpt[5];
         scheduleDraw();
       });
 
       // END DRAG
-      ['mouseup', 'mouseleave'].forEach(evt => {
+      ['mouseup', 'mouseleave'].forEach(evt =>
         el.addEventListener(evt, () => {
           isDragging = false;
           el.style.cursor = 'grab';
-        });
-      });
+        })
+      );
     }
 
+
     // wire it up
-    [mapCanvas, drawingCanvas].forEach(attachMapPan);
 
 
 
