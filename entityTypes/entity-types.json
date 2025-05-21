@@ -1,0 +1,302 @@
+[
+  {
+    "nickname": "Item Spawn",
+    "field": "editorclass",
+    "value": "info_survival_weapon_location",
+    "renderType": "dot",
+    "outerColor": "lime",
+    "innerColor": "green",
+    "outerRadius": 4,
+    "innerRadius": 2
+  },
+  {
+    "nickname": "Ring Console",
+    "field": "editorclass",
+    "value": "script_survival_next_zone_survey_beacon",
+    "renderType": "icon",
+    "icon": "assets/map_ringConsole.png",
+    "size": 20
+  },
+  {
+    "nickname": "Replicator",
+    "field": "editorclass",
+    "value": "script_survival_crafting_workbench_cluster",
+    "renderType": "icon",
+    "icon": "assets/Crafting_Icon.svg",
+    "tintColor": "cyan",
+    "size": 20
+  },
+  {
+    "nickname": "Survey Beacon",
+    "field": "editorclass",
+    "value": "script_survival_survey_beacon",
+    "renderType": "icon",
+    "icon": "assets/map_surveyBeacon.webp",
+    "size": 20
+  },
+  {
+    "nickname": "Arsenal",
+    "field": "editorclass",
+    "value": "info_arsenal_target",
+    "renderType": "icon",
+    "icon": "assets/arsenal.svg",
+    "size": 18
+  },
+  {
+    "nickname": "Respawn Beacon",
+    "field": "editorclass",
+    "value": "script_survival_revival_chamber",
+    "renderType": "icon",
+    "icon": "assets/map_beacon.webp",
+    "size": 24
+  },
+  {
+    "nickname": "Loot Bin",
+    "field": "script_name",
+    "value": "survival_lootbin",
+    "renderType": "icon",
+    "icon": "assets/lootBox.svg",
+    "size": 14
+  },
+  {
+    "nickname": "Jump Tower",
+    "field": "script_name",
+    "value": "skydive_tower",
+    "renderType": "icon",
+    "icon": "assets/Evac_Tower_white.svg",
+    "tintColor": "grey",
+    "size": 24
+  },
+  {
+    "nickname": "Crafting Materials",
+    "field": "model",
+    "value": "mdl/props/crafting_siphon/crafting_siphon.rmdl",
+    "renderType": "icon",
+    "icon": "assets/Materials_blue.svg",
+    "size": 20
+  },
+  {
+    "nickname": "Loot Tick Spawn",
+    "field": "script_name",
+    "value": "static_loot_tick_spawn",
+    "renderType": "icon",
+    "icon": "assets/Apex_Pack_Icon.svg",
+    "tintColor": "yellow",
+    "size": 16
+  },
+  {
+    "nickname": "Charge Tower",
+    "field": "script_name",
+    "value": "capacitor_charge_field",
+    "renderType": "icon",
+    "icon": "assets/apex_charge.svg",
+    "size": 16
+  },
+  {
+    "nickname": "Gun Rack (FIXME)",
+    "field": "editorclass",
+    "value": "script_gun_rack",
+    "renderType": "icon",
+    "icon": "assets/R-301.svg",
+    "tintColor": "white",
+    "size": 16
+  },
+  {
+    "nickname": "Vertical Launcher",
+    "field": "script_name",
+    "value": "district_launcher_vertical",
+    "renderType": "icon",
+    "icon": "assets/Vertical_Launcher.svg",
+    "size": 24
+  },
+  {
+    "nickname": "Horizontal Launcher",
+    "field": "script_name",
+    "value": "district_launcher_horizontal",
+    "renderType": "icon",
+    "icon": "assets/Horizontal_Launcher.svg",
+    "size": 24
+  },
+  {
+    "nickname": "Horizontal Launcher",
+    "field": "model",
+    "value": "mdl/s2s/s2s_hullhatch_tube_lift.rmdl",
+    "renderType": "icon",
+    "icon": "assets/Gravity_Cannon.svg",
+    "size": 24
+  },
+  {
+    "field": "classname",
+    "value": "zipline",
+    "nickname": "Ziplines",
+    "renderType": "zipline",
+    "color": "orange",
+    "lineWidth": 3
+  },
+  {
+    "field": "zone_name",
+    "valueRegex": "^zone_1_",
+    "nickname": "Zone Names",
+    "renderType": "text",
+    "textField": "zone_name",
+    "regexFind": "^zone_\\d+_",
+    "regexReplace": "",
+    "replaceUnderscores": true,
+    "case": "title",
+    "fontSize": 16,
+    "textColor": "white",
+    "offsetY": 0,
+    "offsetX": 20,
+    "scaleWithZoom": true
+  },
+  {
+    "nickname": "Spawn Points",
+    "field": "classname",
+    "value": "info_spawnpoint_human",
+    "renderType": "dot",
+    "outerColor": "blue",
+    "innerColor": "blue",
+    "outerRadius": 4,
+    "innerRadius": 2
+  },
+  {
+    "nickname": "Invalid Zone",
+    "field": "editorclass",
+    "value": "info_survival_invalid_end_zone",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(255,0,0,0.25)",
+    "strokeColor": "#ff4444",
+    "strokeWidth": 1
+  },
+  {
+    "nickname": "End Zone",
+    "field": "editorclass",
+    "value": "info_survival_circle_end_location",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(0,0,255,0.25)",
+    "strokeColor": "#4444FF",
+    "strokeWidth": 2
+  },
+  {
+    "nickname": "Hotzones",
+    "field": "editorclass",
+    "value": "info_survival_loot_hotzone",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(0,255,255,0.25)",
+    "strokeColor": "#44FFFF",
+    "strokeWidth": 2
+  },
+  {
+    "nickname": "Ultra Low Tier Zone (◻️)",
+    "field": "zone_class",
+    "value": "Building_Shack_Ultra_Low",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(142,142,142,0.25)",
+    "strokeColor": "#8E8E8E",
+    "strokeWidth": 2
+  },
+  {
+    "nickname": "Low Tier Zone (◻️)",
+    "field": "zone_class",
+    "value": "zone_low",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(142, 142, 142,0.75)",
+    "strokeColor": "#8E8E8E",
+    "strokeWidth": 2
+  },
+  {
+    "nickname": "Medium Tier Zone (🟦)",
+    "field": "zone_class",
+    "value": "zone_medium",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(30,144,255,0.25)",
+    "strokeColor": "#1E90FF",
+    "strokeWidth": 2
+  },
+  {
+    "nickname": "High Tier Zone (🟪)",
+    "field": "zone_class",
+    "value": "zone_high",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(166,75,255,0.25)",
+    "strokeColor": "#A64BFF",
+    "strokeWidth": 2
+  },
+  {
+    "nickname": "Ultra Tier Zone (🟨)",
+    "field": "zone_class",
+    "value": "POI_Ultra",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(255,180,0,0.25)",
+    "strokeColor": "#FFB400",
+    "strokeWidth": 2
+  },
+  {
+    "nickname": "Sniper Tower (Platform) (🟩)",
+    "field": "zone_class",
+    "value": "Sniper_Tower_Platform",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(59,178,115,0.25)",
+    "strokeColor": "#3BB273",
+    "strokeWidth": 2
+  },
+  {
+    "nickname": "Sniper Loot Zone (🟩)",
+    "field": "zone_class",
+    "value": "POI_sniper",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(59,178,115,0.25)",
+    "strokeColor": "#3BB273",
+    "strokeWidth": 2
+  },
+  {
+    "nickname": "Vault Tier Loot Zone (🟧)",
+    "field": "zone_class",
+    "value": "data_knife_vault",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(255,129,25,0.25)",
+    "strokeColor": "#ff8119",
+    "strokeWidth": 2
+  },
+  {
+    "nickname": "Explosive Hold (🟧)",
+    "field": "zone_class",
+    "value": "Explosive_Hold_Ammo",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(255,129,25,0.25)",
+    "strokeColor": "#ff8119",
+    "strokeWidth": 2
+  },
+  {
+    "nickname": "Supply Ship Zone (🟧)",
+    "field": "zone_class",
+    "value": "bldg_hovertank",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(255,129,25,0.25)",
+    "strokeColor": "#ff8119",
+    "strokeWidth": 2
+  },
+  {
+    "nickname": "High Tier Zone (Supply Ship) (🟪)",
+    "field": "zone_class",
+    "value": "POI_High",
+    "renderType": "circle",
+    "radiusField": "script_radius",
+    "fillColor": "rgba(166,75,255,0.25)",
+    "strokeColor": "#A64BFF",
+    "strokeWidth": 2
+  }
+]

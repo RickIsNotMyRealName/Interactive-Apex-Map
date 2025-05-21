@@ -1,0 +1,51 @@
+[
+    {
+      "file": "mp_rr_arena_skygarden.json",
+      "name": "Encore"
+    },
+    {
+      "file": "mp_rr_arena_composite.json",
+      "name": "Drop-Off"
+    },
+    {
+      "file": "mp_rr_aqueduct.json",
+      "name": "Overflow"
+    },
+    {
+      "file": "mp_rr_thunderdome.json",
+      "name": "Thunderdome"
+    },
+    {
+      "file": "mp_rr_canyonlands_hu.json",
+      "name": "Kings Canyon (Health Update)"
+    },
+    {
+      "file": "mp_rr_desertlands_hu.json",
+      "name": "World’s Edge (Health Update)"
+    },
+    {
+      "file": "mp_rr_district.json",
+      "name": "E-District"
+    },
+    {
+      "file": "mp_rr_divided_moon_mu1.json",
+      "name": "Broken Moon (Map Update 1)"
+    },
+    {
+      "file": "mp_rr_freedm_skulltown.json",
+      "name": "Skull Town"
+    },
+    {
+      "file": "mp_rr_olympus_mu2.json",
+      "name": "Olympus (Map Update 2)"
+    },
+    {
+      "file": "mp_rr_tropic_island_mu2.json",
+      "name": "Storm Point (Map Update 2)"
+    },
+    {
+      "file": "mp_rr_tropic_island_mu2_landscape.json",
+      "name": "Storm Point (Landscape)"
+    }
+  ]
+  
