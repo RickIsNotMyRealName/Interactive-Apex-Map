@@ -1,8 +1,16 @@
 import { getElem } from './dom.js';
 import { state } from './state.js';
 import { createTintedIcon } from './utils.js';
-import { buildEntityTypes, buildLegend, buildFilters, buildZipCache, rebuildHeightLegend } from './ui-builder.js';
+import {
+    buildEntityTypes,
+    buildLegend,
+    buildFilters,
+    buildZipCache,
+    rebuildHeightLegend
+} from './ui-builder.js';
 import { requestRedraw, resizeCanvases } from './render.js';
+
+const STORAGE_KEY = 'lastMapSelection';
 
 export async function loadDefaultList() {
     const sel = getElem('defaultMapSelect');
@@ -10,16 +18,32 @@ export async function loadDefaultList() {
         const res = await fetch('./maps/manifest.json');
         if (!res.ok) throw new Error(res.statusText);
         const list = await res.json();
+
+        // Populate dropdown
+        sel.innerHTML = `<option value="">– Select –</option>`;
         list.forEach(({ name, file }) => {
             const opt = document.createElement('option');
             opt.value = `./maps/${file}`;
             opt.textContent = name;
             sel.appendChild(opt);
         });
-        const customOpt = document.createElement('option');
-        customOpt.value = '__custom';
-        customOpt.textContent = 'Load custom JSON…';
-        sel.appendChild(customOpt);
+        sel.appendChild(new Option('Load custom JSON…', '__custom'));
+
+        // Restore last selection
+        const last = localStorage.getItem(STORAGE_KEY);
+        if (last) {
+            // If it's one of the URLs or "__custom"
+            const hasOption = Array.from(sel.options).some(o => o.value === last);
+            if (hasOption) {
+                sel.value = last;
+                // If custom, show the file‐picker container
+                if (last === '__custom') {
+                    getElem('customJsonContainer').style.display = 'block';
+                }
+                // Trigger loading
+                sel.dispatchEvent(new Event('change'));
+            }
+        }
     } catch (err) {
         console.warn('Could not load map manifest:', err);
     }
@@ -96,8 +120,12 @@ export function attachLoadHandlers() {
     const comb = getElem('combinedInput');
     const et = getElem('etConfigInput');
 
+    // When user picks a map from the dropdown
     sel.addEventListener('change', async e => {
         const v = e.target.value;
+        // persist choice
+        localStorage.setItem(STORAGE_KEY, v);
+
         if (v === '__custom') {
             customC.style.display = 'block';
             return;
@@ -105,6 +133,7 @@ export function attachLoadHandlers() {
             customC.style.display = 'none';
         }
         if (!v) return;
+
         try {
             const txt = await fetch(v).then(r => r.ok ? r.text() : Promise.reject(r.status));
             handleCombinedData(JSON.parse(txt), v.split('/').pop());
@@ -113,18 +142,22 @@ export function attachLoadHandlers() {
         }
     });
 
+    // When user selects a custom JSON file
     comb.addEventListener('change', e => {
         const f = e.target.files[0];
         if (!f) return;
-        const r = new FileReader();
-        r.onload = () => {
+        // mark that we're in "custom" mode
+        localStorage.setItem(STORAGE_KEY, '__custom');
+
+        const reader = new FileReader();
+        reader.onload = () => {
             try {
-                handleCombinedData(JSON.parse(r.result), f.name);
-            } catch (e) {
-                alert('Invalid JSON:' + e);
+                handleCombinedData(JSON.parse(reader.result), f.name);
+            } catch (err) {
+                alert('Invalid JSON:' + err);
             }
         };
-        r.readAsText(f);
+        reader.readAsText(f);
     });
 
     et.addEventListener('click', () => { et.value = ''; });
