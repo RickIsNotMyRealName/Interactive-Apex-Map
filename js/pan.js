@@ -18,11 +18,10 @@ function drawRadiusControl(ctx, left, top, styleOverride, fabricObject) {
     ctx.save();
     ctx.beginPath();
     ctx.arc(left, top, 7, 0, 2 * Math.PI);
-    // ctx.fillStyle = '#';
     ctx.globalAlpha = 0;
     ctx.fill();
     ctx.lineWidth = 1;
-    ctx.strokeStyle = '#B3C1E5';
+    ctx.strokeStyle = '#b2ccff';
     ctx.globalAlpha = 1.0;
     ctx.stroke();
     ctx.restore();

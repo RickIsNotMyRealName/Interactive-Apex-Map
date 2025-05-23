@@ -43,7 +43,6 @@ export function bindToolbar() {
             stroke: '#000',
             strokeWidth: 1,
             hasControls: true,          // enable controls
-            hasBorders: false,          // remove bounding box border
             lockScalingX: true,         // prevent default scaling
             lockScalingY: true,
             lockUniScaling: true,       // prevent aspect ratio scaling via default handles
