@@ -1,16 +1,22 @@
 import { getElem } from './dom.js';
 import { state } from './state.js';
+import { fabricCanvas } from './pan.js';
 
 export function bindTooltip() {
     const mapCanvas = getElem('mapCanvas');
     const tooltip = getElem('tooltip');
+    const upperEl = fabricCanvas.upperCanvasEl;
 
-    mapCanvas.addEventListener('mousemove', e => {
-        const mx = e.offsetX, my = e.offsetY;
-        const cX = (mx - state.transform.offsetX) / state.transform.scale;
-        const cY = (my - state.transform.offsetY) / state.transform.scale;
+    upperEl.addEventListener('mouseleave', () => {
+        tooltip.style.display = 'none';
+    });
+
+    upperEl.addEventListener('mousemove', e => {
+        const rect = upperEl.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
         let found = null;
-        const r = 5 / state.transform.scale;
+        const R = 5;
 
         outer: for (const item of state.entData) {
             if (!item.enabled) continue;
@@ -22,13 +28,15 @@ export function bindTooltip() {
                     return !state.missingFilters[k];
                 })) continue;
                 if (state.hideOutOfRange && (ent.h < state.heightMin || ent.h > state.heightMax)) continue;
-                const { cx, cy } = (() => {
-                    const W = state.worldBounds;
-                    const px = (ent.x - W.minX) / (W.maxX - W.minX) * mapCanvas.width;
-                    const py = mapCanvas.height - ((ent.y - W.minY) / (W.maxY - W.minY) * mapCanvas.height);
-                    return { cx: px, cy: py };
-                })();
-                if ((cX - cx) ** 2 + (cY - cy) ** 2 < r * r) {
+
+                const W = state.worldBounds;
+                const px = (ent.x - W.minX) / (W.maxX - W.minX) * mapCanvas.width;
+                const py = mapCanvas.height - ((ent.y - W.minY) / (W.maxY - W.minY) * mapCanvas.height);
+
+                const sx = px * state.transform.scale + state.transform.offsetX;
+                const sy = py * state.transform.scale + state.transform.offsetY;
+
+                if ((mx - sx) ** 2 + (my - sy) ** 2 <= R * R) {
                     found = ent;
                     break outer;
                 }
@@ -40,7 +48,9 @@ export function bindTooltip() {
             tooltip.style.left = (mx + 10) + 'px';
             tooltip.style.top = (my + 10) + 'px';
             tooltip.innerHTML = Object.entries(found.props)
-                .map(([k, v]) => `<strong>${k}</strong>: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+                .map(([k, v]) =>
+                    `<strong>${k}</strong>: ${typeof v === 'object' ? JSON.stringify(v) : v}`
+                )
                 .join('<br>');
         } else {
             tooltip.style.display = 'none';
