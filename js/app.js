@@ -8,14 +8,14 @@ import { bindTooltip } from './tooltip.js';
 import { startRenderLoop } from './render.js';
 
 window.addEventListener('DOMContentLoaded', () => {
-  cacheDom();
-  initState();
-  loadDefaultList();
-  loadDefaultEntityTypes();
-  attachLoadHandlers();
-  buildAllUI();
-  setupPan();
-  bindToolbar();
-  bindTooltip();
-  startRenderLoop();
+    cacheDom();
+    initState();
+    loadDefaultList();
+    loadDefaultEntityTypes();
+    attachLoadHandlers();
+    buildAllUI();
+    setupPan();
+    bindToolbar();
+    bindTooltip();
+    startRenderLoop();
 });

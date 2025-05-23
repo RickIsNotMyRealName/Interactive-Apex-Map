@@ -37,9 +37,7 @@ body {
     padding: 20px;
     overflow-y: auto;
     flex: 0 0 300px;
-    /* no grow, no shrink, fixed 300px */
     min-width: 300px;
-    /* ensure it never gets narrower */
 }
 
 #sidebar h1 {
