@@ -232,6 +232,22 @@ input[type="text"]::placeholder {
     z-index: 100;
 }
 
+/* ░░ NEW floating shape-info panel ░░ */
+#shapeInfo {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: var(--tooltip-bg);
+    border: 1px solid var(--tooltip-border);
+    border-radius: 4px;
+    padding: 10px 14px;
+    font-size: 0.85em;
+    color: var(--primary-text);
+    max-width: 260px;
+    pointer-events: none;
+    z-index: 101;
+}
+
 #sidebar::-webkit-scrollbar {
     width: 8px;
 }
@@ -254,13 +270,8 @@ canvas.upper-canvas {
     height: 100%;
 }
 
-canvas.lower-canvas {
-    z-index: 1;
-}
-
-canvas.upper-canvas {
-    z-index: 2;
-}
+canvas.lower-canvas { z-index: 1; }
+canvas.upper-canvas { z-index: 2; }
 
 #toolbar button.active {
     background: var(--accent);

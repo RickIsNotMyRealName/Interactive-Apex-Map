@@ -19,6 +19,7 @@ export function cacheDom() {
     elems.hideOutCB = $('hideOutCB');
     elems.heightLegend = $('heightLegend');
     elems.tooltip = $('tooltip');
+    elems.shapeInfo = $('shapeInfo');   // ⬅ NEW
 
     // toolbar container (if you ever need it)
     elems.toolbar = document.querySelector('#toolbar');

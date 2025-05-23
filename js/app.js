@@ -5,6 +5,7 @@ import { buildAllUI } from './ui-builder.js';
 import { setupPan } from './pan.js';
 import { bindToolbar } from './toolbar.js';
 import { bindTooltip } from './tooltip.js';
+import { bindShapeInfo } from './shape-info.js';          // ⬅ NEW
 import { startRenderLoop } from './render.js';
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -17,5 +18,6 @@ window.addEventListener('DOMContentLoaded', () => {
     setupPan();
     bindToolbar();
     bindTooltip();
+    bindShapeInfo();                                      // ⬅ NEW
     startRenderLoop();
 });
