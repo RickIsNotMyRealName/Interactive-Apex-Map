@@ -88,7 +88,7 @@ body {
 label {
     display: block;
     margin-bottom: 12px;
-    font-size: 0.95em;
+    font-size: .95em;
     color: var(--primary-text);
 }
 
@@ -97,7 +97,7 @@ input[type="text"],
 input[type="number"] {
     width: 100%;
     padding: 6px 8px;
-    font-size: 0.9em;
+    font-size: .9em;
     border: 1px solid var(--filter-border);
     border-radius: 4px;
     background: #1a1a1a;
@@ -157,7 +157,7 @@ input[type="text"]::placeholder {
 .filter-group label {
     display: flex;
     align-items: center;
-    font-size: 0.9em;
+    font-size: .9em;
     margin-bottom: 4px;
     color: var(--primary-text);
 }
@@ -210,7 +210,7 @@ input[type="text"]::placeholder {
 #toolbar button,
 #toolbar input[type="file"] {
     padding: 4px 8px;
-    font-size: 0.9em;
+    font-size: .9em;
     background: #444;
     border: 1px solid #555;
     color: #eee;
@@ -224,15 +224,15 @@ input[type="text"]::placeholder {
     border: 1px solid var(--tooltip-border);
     border-radius: 4px;
     padding: 8px;
-    font-size: 0.85em;
+    font-size: .85em;
     color: var(--primary-text);
     max-width: 240px;
     pointer-events: none;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .5);
     z-index: 100;
 }
 
-/* ░░ NEW floating shape-info panel ░░ */
+/* ── floating shape-info panel ─────────────────────────────────────── */
 #shapeInfo {
     position: absolute;
     bottom: 10px;
@@ -241,10 +241,9 @@ input[type="text"]::placeholder {
     border: 1px solid var(--tooltip-border);
     border-radius: 4px;
     padding: 10px 14px;
-    font-size: 0.85em;
+    font-size: .85em;
     color: var(--primary-text);
-    max-width: 260px;
-    pointer-events: none;
+    max-width: 280px;
     z-index: 101;
 }
 
@@ -270,10 +269,67 @@ canvas.upper-canvas {
     height: 100%;
 }
 
-canvas.lower-canvas { z-index: 1; }
-canvas.upper-canvas { z-index: 2; }
+canvas.lower-canvas {
+    z-index: 1;
+}
+
+canvas.upper-canvas {
+    z-index: 2;
+}
 
 #toolbar button.active {
     background: var(--accent);
     color: #000;
+}
+
+/* ── Shape-info editable rows ──────────────────────────────────────── */
+#shapeInfo .shape-info-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+#shapeInfo .shape-info-row label {
+    flex: 1 1 auto;
+    margin: 0;
+    font-size: .85em;
+    color: var(--secondary-text);
+    line-height: 1.5em;
+}
+
+#shapeInfo input[type="number"] {
+    width: 6em;
+    height: 1.5em;
+    padding: 2px 4px;
+    font-size: .85em;
+    background: #222;
+    border: 1px solid var(--filter-border);
+    border-radius: 3px;
+    color: var(--primary-text);
+    text-align: right;
+    appearance: none;
+    -moz-appearance: textfield;
+}
+
+#shapeInfo input[type="number"]::-webkit-outer-spin-button,
+#shapeInfo input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+#shapeInfo input[type="number"]:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+/* dropdown for units */
+#shapeInfo select.shape-unit-select {
+    height: 1.5em;
+    font-size: .78em;
+    background: #222;
+    color: var(--primary-text);
+    border: 1px solid var(--filter-border);
+    border-radius: 3px;
+    padding: 1px 2px;
 }
