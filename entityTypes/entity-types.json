@@ -1,5 +1,42 @@
 [
   {
+    "nickname": "Ring Console",
+    "field": "editorclass",
+    "value": "script_survival_next_zone_survey_beacon",
+    "renderType": "icon",
+    "icon": "assets/map_ringConsole.png",
+    "defaultEnabled": true,
+    "size": 20
+  },
+  {
+    "nickname": "Survey Beacon",
+    "field": "editorclass",
+    "value": "script_survival_survey_beacon",
+    "renderType": "icon",
+    "icon": "assets/map_surveyBeacon.webp",
+    "defaultEnabled": true,
+    "size": 20
+  },
+  {
+    "nickname": "Replicator",
+    "field": "editorclass",
+    "value": "script_survival_crafting_workbench_cluster",
+    "renderType": "icon",
+    "icon": "assets/Crafting_Icon.svg",
+    "tintColor": "cyan",
+    "defaultEnabled": true,
+    "size": 20
+  },
+  {
+    "nickname": "Respawn Beacon",
+    "field": "editorclass",
+    "value": "script_survival_revival_chamber",
+    "renderType": "icon",
+    "icon": "assets/map_beacon.webp",
+    "defaultEnabled": true,
+    "size": 24
+  },
+  {
     "nickname": "Item Spawn",
     "field": "editorclass",
     "value": "info_survival_weapon_location",
@@ -10,45 +47,12 @@
     "innerRadius": 2
   },
   {
-    "nickname": "Ring Console",
-    "field": "editorclass",
-    "value": "script_survival_next_zone_survey_beacon",
-    "renderType": "icon",
-    "icon": "assets/map_ringConsole.png",
-    "size": 20
-  },
-  {
-    "nickname": "Replicator",
-    "field": "editorclass",
-    "value": "script_survival_crafting_workbench_cluster",
-    "renderType": "icon",
-    "icon": "assets/Crafting_Icon.svg",
-    "tintColor": "cyan",
-    "size": 20
-  },
-  {
-    "nickname": "Survey Beacon",
-    "field": "editorclass",
-    "value": "script_survival_survey_beacon",
-    "renderType": "icon",
-    "icon": "assets/map_surveyBeacon.webp",
-    "size": 20
-  },
-  {
     "nickname": "Arsenal",
     "field": "editorclass",
     "value": "info_arsenal_target",
     "renderType": "icon",
     "icon": "assets/arsenal.svg",
     "size": 18
-  },
-  {
-    "nickname": "Respawn Beacon",
-    "field": "editorclass",
-    "value": "script_survival_revival_chamber",
-    "renderType": "icon",
-    "icon": "assets/map_beacon.webp",
-    "size": 24
   },
   {
     "nickname": "Loot Bin",

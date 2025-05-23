@@ -12,17 +12,23 @@ export function buildAllUI() {
 }
 
 export function buildEntityTypes() {
-    const c = getElem('entityTypes');
-    c.innerHTML = '';
+    const container = getElem('entityTypes');
+    container.innerHTML = '';
+
     state.entityTypeConfig.forEach((cfg, i) => {
         const lbl = document.createElement('label');
         const cb = document.createElement('input');
         cb.type = 'checkbox';
-        cb.onchange = () => { state.entityTypeFilters[i] = cb.checked; requestRedraw(); };
+        cb.checked = state.entityTypeFilters[i];    // ← set initial checked state
+        cb.onchange = () => {
+            state.entityTypeFilters[i] = cb.checked;
+            requestRedraw();
+        };
         lbl.append(cb, ' ', cfg.nickname);
-        c.append(lbl);
+        container.append(lbl);
     });
 }
+
 
 export function buildLegend() {
     const c = getElem('legend');

@@ -31,7 +31,7 @@ export async function loadDefaultEntityTypes() {
         if (!res.ok) throw new Error(res.statusText);
         const list = await res.json();
         state.entityTypeConfig = list;
-        state.entityTypeFilters = list.map(() => false);
+        state.entityTypeFilters = list.map(cfg => !!cfg.defaultEnabled);
         Object.keys(state.iconCache).forEach(k => delete state.iconCache[k]);
         Object.keys(state.tintedIconCache).forEach(k => delete state.tintedIconCache[k]);
         list.forEach((c, i) => {
@@ -136,7 +136,7 @@ export function attachLoadHandlers() {
             try {
                 const list = JSON.parse(r.result);
                 state.entityTypeConfig = list;
-                state.entityTypeFilters = list.map(() => false);
+                state.entityTypeFilters = list.map(cfg => !!cfg.defaultEnabled);
                 Object.keys(state.iconCache).forEach(k => delete state.iconCache[k]);
                 Object.keys(state.tintedIconCache).forEach(k => delete state.tintedIconCache[k]);
                 list.forEach((c, i) => {
