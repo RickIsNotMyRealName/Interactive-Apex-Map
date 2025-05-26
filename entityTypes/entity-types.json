@@ -363,5 +363,13 @@
         "strokeWidth": 2
       }
     ]
+  },
+  {
+    "nickname": "Supply Ship End Locations",
+    "field": "script_name",
+    "value": "hovertank_end_node",
+    "renderType": "icon",
+    "icon": "assets/MapIcon_Supply_Ship_Landing_Spot.png",
+    "size": 28
   }
 ]
