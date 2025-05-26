@@ -11,54 +11,51 @@ export function buildAllUI() {
     rebuildHeightLegend();
 }
 
-/*───────────────────────────────────────────────────────────────────────────*\
-  ENTITY-TYPES PANEL
-  ────────────────────────────────────────────────────────────────────────────
-  • Parent rows  (renderType:"list")
-       – showChildren:false  → no child rows at all
-       – collapsed:true      → children start hidden
-  • Child rows
-       – independent:true    → parent checkbox never toggles that row
-\*───────────────────────────────────────────────────────────────────────────*/
 export function buildEntityTypes() {
     const panel = getElem('entityTypes');
     panel.innerHTML = '';
 
-    /* map of parentIdx → child indices */
+    /* map parent → children */
     const kidsByParent = {};
     state.entityTypeConfig.forEach((cfg, i) => {
         if (cfg.parentGroup !== undefined) (kidsByParent[cfg.parentGroup] ||= []).push(i);
     });
 
-    /* refs to check-boxes (null for hidden children) */
+    /* refs to check-boxes */
     const checkRefs = [];
 
-    /*── helpers ─────────────────────────────────────────────────────────────*/
+    /*── helper: update parent’s tri-state -─────────────*/
     function syncParentState(parentIdx) {
-        const kids = (kidsByParent[parentIdx] || [])
-            .filter(k => !state.entityTypeConfig[k].independent);
-        if (kids.length === 0) return;
+        const cbParent = checkRefs[parentIdx];
+        if (!cbParent) return;
 
-        const allOn = kids.every(k => state.entityTypeFilters[k]);
-        const allOff = kids.every(k => !state.entityTypeFilters[k]);
-        const pCb = checkRefs[parentIdx];
-        if (!pCb) return;
+        const kids = kidsByParent[parentIdx] || [];
 
-        if (allOn) { pCb.indeterminate = false; pCb.checked = true; }
-        else if (allOff) { pCb.indeterminate = false; pCb.checked = false; }
-        else { pCb.indeterminate = true; pCb.checked = false; }
+        /* consider only non-independent children */
+        const depKids = kids.filter(k => !state.entityTypeConfig[k].independent);
+
+        if (depKids.length === 0) return;               // nothing to sync
+
+        const allOn = depKids.every(k => state.entityTypeFilters[k]);
+        const allOff = depKids.every(k => !state.entityTypeFilters[k]);
+
+        if (allOn) { cbParent.indeterminate = false; cbParent.checked = true; }
+        else if (allOff) { cbParent.indeterminate = false; cbParent.checked = false; }
+        else { cbParent.indeterminate = true; cbParent.checked = false; }
     }
 
-    function makeRow(cfg, idx, kind /* 'parent'|'child'|'solo' */) {
-        const div = document.createElement('div');
+    /*── row factory ─────────────────────────────────────*/
+    function makeRow(cfg, idx, kind /* 'parent' | 'child' | 'solo' */) {
+        const row = document.createElement('div');
         const label = document.createElement('label');
+
         const cb = Object.assign(document.createElement('input'), {
             type: 'checkbox',
             checked: state.entityTypeFilters[idx]
         });
         checkRefs[idx] = cb;
 
-        /* visual styling */
+        /* visual tweaks */
         if (kind === 'parent') {
             label.style.fontWeight = 'bold';
             label.style.marginTop = '6px';
@@ -66,17 +63,20 @@ export function buildEntityTypes() {
             label.style.marginLeft = '18px';
         }
 
-        /* collapse arrow for parents with visible children */
+        /* collapse / expand arrow */
         let arrow = null;
         if (kind === 'parent' && cfg.showChildren !== false && (kidsByParent[idx] || []).length) {
-            arrow = document.createElement('span');
             const collapsedInit = cfg.collapsed === true;
-            arrow.dataset.collapsed = collapsedInit ? 'true' : 'false';
+
+            arrow = document.createElement('span');
             arrow.textContent = collapsedInit ? '▸' : '▾';
+            arrow.dataset.collapsed = collapsedInit ? 'true' : 'false';
             arrow.style.cursor = 'pointer';
             arrow.style.marginRight = '4px';
+
             arrow.addEventListener('click', ev => {
-                ev.stopPropagation();               // don’t toggle checkbox
+                ev.stopPropagation();       // prevent label bubbling
+                ev.preventDefault();        // prevent check-box toggle
                 const collapsed = arrow.dataset.collapsed === 'true';
                 arrow.dataset.collapsed = collapsed ? 'false' : 'true';
                 arrow.textContent = collapsed ? '▾' : '▸';
@@ -85,61 +85,63 @@ export function buildEntityTypes() {
                     if (el) el.style.display = collapsed ? '' : 'none';
                 });
             });
+
             label.append(arrow);
         }
 
-        /* assemble row */
         label.append(cb, ' ', cfg.nickname || '(unnamed)');
-        div.append(label);
-        div.dataset.row = idx;
-        if (kind === 'child') div.dataset.parent = cfg.parentGroup;
-        panel.append(div);
+        row.append(label);
+        row.dataset.row = idx;
+        if (kind === 'child') row.dataset.parent = cfg.parentGroup;
+        panel.append(row);
 
-        /*── handlers ──────────────────────────────────────────────────────────*/
-        if (cfg.isGroup) {                    // parent
+        /*── interactions ─────────────────────────────────*/
+        if (cfg.isGroup) {                      /* parent */
             cb.addEventListener('change', () => {
-                (kidsByParent[idx] || []).forEach(kidIdx => {
-                    const childCfg = state.entityTypeConfig[kidIdx];
+                (kidsByParent[idx] || []).forEach(kid => {
+                    const childCfg = state.entityTypeConfig[kid];
                     if (childCfg.independent) return;
-                    state.entityTypeFilters[kidIdx] = cb.checked;
-                    const kidCb = checkRefs[kidIdx];
+                    state.entityTypeFilters[kid] = cb.checked;
+                    const kidCb = checkRefs[kid];
                     if (kidCb) kidCb.checked = cb.checked;
                 });
                 requestRedraw();
             });
-        } else {                              // child / solo
+        } else {                                /* child / solo */
             cb.addEventListener('change', () => {
                 state.entityTypeFilters[idx] = cb.checked;
                 if (cfg.parentGroup !== undefined) syncParentState(cfg.parentGroup);
                 requestRedraw();
             });
         }
-        return div;
+
+        return row;
     }
 
-    /*──────── main loop preserves source order ────────────────*/
+    /*── build list preserving original order ───────────*/
     state.entityTypeConfig.forEach((cfg, i) => {
         if (cfg.isGroup) {
-            /* 1️⃣ parent row */
             const parentRow = makeRow(cfg, i, 'parent');
 
-            /* 2️⃣ children (if not permanently hidden) */
+            /* children rows */
             const collapsedInit = cfg.collapsed === true;
-            (kidsByParent[i] || []).forEach(kidIdx => {
-                const childCfg = state.entityTypeConfig[kidIdx];
+            (kidsByParent[i] || []).forEach(kid => {
+                const childCfg = state.entityTypeConfig[kid];
                 if (cfg.showChildren !== false) {
-                    const childRow = makeRow(childCfg, kidIdx, 'child');
+                    const childRow = makeRow(childCfg, kid, 'child');
                     if (collapsedInit) childRow.style.display = 'none';
                 } else {
-                    checkRefs[kidIdx] = null;  // placeholder
+                    checkRefs[kid] = null;
                 }
             });
+
+            /* final sync so parent shows correct state at load */
+            syncParentState(i);
         }
-        /* stand-alone entry */
+        /* stand-alone row */
         else if (cfg.parentGroup === undefined) {
             makeRow(cfg, i, 'solo');
         }
-        /* child rows created when parent is processed */
     });
 }
 
