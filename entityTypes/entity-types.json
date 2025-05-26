@@ -106,6 +106,14 @@
     "size": 16
   },
   {
+    "nickname": "Trident Spawns",
+    "field": "editorclass",
+    "value": "hover_vehicle",
+    "renderType": "icon",
+    "icon": "assets/Trident.webp",
+    "size": 26
+  },
+  {
     "nickname": "Vertical Launcher",
     "field": "script_name",
     "value": "district_launcher_vertical",
