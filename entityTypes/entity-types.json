@@ -1,5 +1,61 @@
 [
   {
+    "nickname": "Zone Names",
+    "renderType": "list",
+    "showChildren": false,
+    "defaultEnabled": true,
+    "list": [
+      {
+        "field": "zone_name",
+        "valueRegex": "^zone_\\d+_",
+        "nickname": "Zone Names (Zone_1_*, Zone_2_*, etc.)",
+        "renderType": "text",
+        "textField": "zone_name",
+        "regexFind": "^zone_\\d+_",
+        "regexReplace": "",
+        "replaceUnderscores": true,
+        "case": "title",
+        "fontSize": 6,
+        "textColor": "white",
+        "offsetY": 0,
+        "offsetX": 0,
+        "scaleWithZoom": true
+      },
+      {
+        "field": "zone_name",
+        "valueRegex": "^Z_\\d+_",
+        "nickname": "Zone Names (Z_1_*, Z_2_*, etc.)",
+        "renderType": "text",
+        "textField": "zone_name",
+        "regexFind": "^zone_\\d+_",
+        "regexReplace": "",
+        "replaceUnderscores": true,
+        "case": "title",
+        "fontSize": 6,
+        "textColor": "white",
+        "offsetY": 0,
+        "offsetX": 0,
+        "scaleWithZoom": true
+      },
+      {
+        "field": "zone_name",
+        "valueRegex": "^JCT_\\d+_",
+        "nickname": "Zone Names (JCT_1_*, JCT_2_*, etc.)",
+        "renderType": "text",
+        "textField": "zone_name",
+        "regexFind": "^zone_\\d+_",
+        "regexReplace": "",
+        "replaceUnderscores": true,
+        "case": "title",
+        "fontSize": 6,
+        "textColor": "white",
+        "offsetY": 0,
+        "offsetX": 0,
+        "scaleWithZoom": true
+      }
+    ]
+  },
+  {
     "nickname": "Ring Console",
     "field": "editorclass",
     "value": "script_survival_next_zone_survey_beacon",
@@ -144,22 +200,6 @@
     "renderType": "zipline",
     "color": "orange",
     "lineWidth": 3
-  },
-  {
-    "field": "zone_name",
-    "valueRegex": "^zone_1_",
-    "nickname": "Zone Names",
-    "renderType": "text",
-    "textField": "zone_name",
-    "regexFind": "^zone_\\d+_",
-    "regexReplace": "",
-    "replaceUnderscores": true,
-    "case": "title",
-    "fontSize": 16,
-    "textColor": "white",
-    "offsetY": 0,
-    "offsetX": 20,
-    "scaleWithZoom": true
   },
   {
     "nickname": "Spawn Points",
