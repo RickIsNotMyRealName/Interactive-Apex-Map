@@ -302,5 +302,32 @@
     "fillColor": "rgba(166,75,255,0.25)",
     "strokeColor": "#A64BFF",
     "strokeWidth": 2
+  },
+  {
+    "nickname": "POI Names",
+    "renderType": "list",
+    "defaultEnabled": false,
+    "list": [
+      {
+        "nickname": "Medium Tier Zone (🟦)",
+        "field": "zone_class",
+        "value": "zone_medium",
+        "renderType": "circle",
+        "radiusField": "script_radius",
+        "fillColor": "rgba(30,144,255,0.25)",
+        "strokeColor": "#1E90FF",
+        "strokeWidth": 2
+      },
+      {
+        "nickname": "High Tier Zone (🟪)",
+        "field": "zone_class",
+        "value": "zone_high",
+        "renderType": "circle",
+        "radiusField": "script_radius",
+        "fillColor": "rgba(166,75,255,0.25)",
+        "strokeColor": "#A64BFF",
+        "strokeWidth": 2
+      }
+    ]
   }
 ]

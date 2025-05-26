@@ -11,25 +11,84 @@ export function buildAllUI() {
     rebuildHeightLegend();
 }
 
+/*───────────────────────────────────────────────────────────────────────────*\
+  ENTITY-TYPE LIST (supports parent “group” rows created from renderType:list)
+\*───────────────────────────────────────────────────────────────────────────*/
 export function buildEntityTypes() {
-    const container = getElem('entityTypes');
-    container.innerHTML = '';
+    const c = getElem('entityTypes');
+    c.innerHTML = '';
 
+    /* map of parent → child indices */
+    const kidsByParent = {};
     state.entityTypeConfig.forEach((cfg, i) => {
-        const lbl = document.createElement('label');
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = state.entityTypeFilters[i];    // ← set initial checked state
-        cb.onchange = () => {
-            state.entityTypeFilters[i] = cb.checked;
-            requestRedraw();
-        };
-        lbl.append(cb, ' ', cfg.nickname);
-        container.append(lbl);
+        if (cfg.parentGroup !== undefined) {
+            (kidsByParent[cfg.parentGroup] ||= []).push(i);
+        }
     });
+
+    /* keep refs so we can change check‐states programmatically */
+    const checkRefs = [];
+
+    function makeRow(cfg, idx) {
+        const lbl = document.createElement('label');
+        const cb = Object.assign(document.createElement('input'), {
+            type: 'checkbox',
+            checked: state.entityTypeFilters[idx]
+        });
+        checkRefs[idx] = cb;
+
+        if (cfg.isGroup) {
+            lbl.style.fontWeight = 'bold';
+            lbl.style.marginTop = '6px';
+        } else if (cfg.parentGroup !== undefined) {
+            lbl.style.marginLeft = '18px';
+        }
+
+        lbl.append(cb, ' ', cfg.nickname || '(unnamed)');
+        c.append(lbl);
+
+        /* handlers ───────────────────────────────────────────────*/
+        if (cfg.isGroup) {
+            cb.onchange = () => {
+                (kidsByParent[idx] || []).forEach(k => {
+                    state.entityTypeFilters[k] = cb.checked;
+                    checkRefs[k].checked = cb.checked;
+                });
+                requestRedraw();
+            };
+        } else {
+            cb.onchange = () => {
+                state.entityTypeFilters[idx] = cb.checked;
+
+                const p = cfg.parentGroup;
+                if (p !== undefined) {
+                    const kids = kidsByParent[p];
+                    const allOn = kids.every(k => state.entityTypeFilters[k]);
+                    const allOff = kids.every(k => !state.entityTypeFilters[k]);
+
+                    const pCb = checkRefs[p];
+                    if (allOn) {
+                        pCb.indeterminate = false;
+                        pCb.checked = true;
+                    } else if (allOff) {
+                        pCb.indeterminate = false;
+                        pCb.checked = false;
+                    } else {
+                        pCb.indeterminate = true;
+                        pCb.checked = false;
+                    }
+                }
+                requestRedraw();
+            };
+        }
+    }
+
+    state.entityTypeConfig.forEach(makeRow);
 }
 
-
+/*───────────────────────────────────────────────────────────────────────────*/
+/* the rest of the file is unchanged                                         */
+/*───────────────────────────────────────────────────────────────────────────*/
 export function buildLegend() {
     const c = getElem('legend');
     c.innerHTML = '';
@@ -39,8 +98,9 @@ export function buildLegend() {
         cb.type = 'checkbox'; cb.checked = item.enabled;
         cb.onchange = () => { item.enabled = cb.checked; requestRedraw(); };
         const sw = document.createElement('span');
-        sw.style.cssText = `width:14px;height:14px;display:inline-block;margin-right:8px;
-                        border:1px solid #999;background:${item.color}`;
+        sw.style.cssText =
+            'width:14px;height:14px;display:inline-block;margin-right:8px;' +
+            `border:1px solid #999;background:${item.color}`;
         lbl.append(cb, sw, item.fileName);
         c.append(lbl);
     });
