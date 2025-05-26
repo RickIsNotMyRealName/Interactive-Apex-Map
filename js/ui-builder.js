@@ -14,31 +14,30 @@ export function buildAllUI() {
 /*───────────────────────────────────────────────────────────────────────────*\
   ENTITY-TYPES PANEL
   ────────────────────────────────────────────────────────────────────────────
-  • Parent rows: renderType:"list"
-  • Parent option   showChildren:false   hides sub-rows.
-  • Child option    independent:true    excludes that row from parent toggles.
+  • Parent rows  (renderType:"list")
+       – showChildren:false  → no child rows at all
+       – collapsed:true      → children start hidden
+  • Child rows
+       – independent:true    → parent checkbox never toggles that row
 \*───────────────────────────────────────────────────────────────────────────*/
 export function buildEntityTypes() {
-    const c = getElem('entityTypes');
-    c.innerHTML = '';
+    const panel = getElem('entityTypes');
+    panel.innerHTML = '';
 
-    /* map parentIdx → child indices */
+    /* map of parentIdx → child indices */
     const kidsByParent = {};
     state.entityTypeConfig.forEach((cfg, i) => {
-        if (cfg.parentGroup !== undefined) {
-            (kidsByParent[cfg.parentGroup] ||= []).push(i);
-        }
+        if (cfg.parentGroup !== undefined) (kidsByParent[cfg.parentGroup] ||= []).push(i);
     });
 
-    /* checkbox refs (null for hidden children) */
+    /* refs to check-boxes (null for hidden children) */
     const checkRefs = [];
 
     /*── helpers ─────────────────────────────────────────────────────────────*/
     function syncParentState(parentIdx) {
         const kids = (kidsByParent[parentIdx] || [])
-            .filter(k => !state.entityTypeConfig[k].independent);     // only dependents
-
-        if (kids.length === 0) return;          // all children independent → ignore
+            .filter(k => !state.entityTypeConfig[k].independent);
+        if (kids.length === 0) return;
 
         const allOn = kids.every(k => state.entityTypeFilters[k]);
         const allOff = kids.every(k => !state.entityTypeFilters[k]);
@@ -50,58 +49,101 @@ export function buildEntityTypes() {
         else { pCb.indeterminate = true; pCb.checked = false; }
     }
 
-    function makeRow(cfg, idx, isChild) {
-        const lbl = document.createElement('label');
+    function makeRow(cfg, idx, kind /* 'parent'|'child'|'solo' */) {
+        const div = document.createElement('div');
+        const label = document.createElement('label');
         const cb = Object.assign(document.createElement('input'), {
             type: 'checkbox',
             checked: state.entityTypeFilters[idx]
         });
         checkRefs[idx] = cb;
 
-        if (cfg.isGroup) {
-            lbl.style.fontWeight = 'bold';
-            lbl.style.marginTop = '6px';
-        } else if (isChild) {
-            lbl.style.marginLeft = '18px';
+        /* visual styling */
+        if (kind === 'parent') {
+            label.style.fontWeight = 'bold';
+            label.style.marginTop = '6px';
+        } else if (kind === 'child') {
+            label.style.marginLeft = '18px';
         }
 
-        lbl.append(cb, ' ', cfg.nickname || '(unnamed)');
-        c.append(lbl);
+        /* collapse arrow for parents with visible children */
+        let arrow = null;
+        if (kind === 'parent' && cfg.showChildren !== false && (kidsByParent[idx] || []).length) {
+            arrow = document.createElement('span');
+            const collapsedInit = cfg.collapsed === true;
+            arrow.dataset.collapsed = collapsedInit ? 'true' : 'false';
+            arrow.textContent = collapsedInit ? '▸' : '▾';
+            arrow.style.cursor = 'pointer';
+            arrow.style.marginRight = '4px';
+            arrow.addEventListener('click', ev => {
+                ev.stopPropagation();               // don’t toggle checkbox
+                const collapsed = arrow.dataset.collapsed === 'true';
+                arrow.dataset.collapsed = collapsed ? 'false' : 'true';
+                arrow.textContent = collapsed ? '▾' : '▸';
+                (kidsByParent[idx] || []).forEach(kid => {
+                    const el = panel.querySelector(`[data-parent="${idx}"][data-row="${kid}"]`);
+                    if (el) el.style.display = collapsed ? '' : 'none';
+                });
+            });
+            label.append(arrow);
+        }
+
+        /* assemble row */
+        label.append(cb, ' ', cfg.nickname || '(unnamed)');
+        div.append(label);
+        div.dataset.row = idx;
+        if (kind === 'child') div.dataset.parent = cfg.parentGroup;
+        panel.append(div);
 
         /*── handlers ──────────────────────────────────────────────────────────*/
-        if (cfg.isGroup) {
-            cb.onchange = () => {
+        if (cfg.isGroup) {                    // parent
+            cb.addEventListener('change', () => {
                 (kidsByParent[idx] || []).forEach(kidIdx => {
                     const childCfg = state.entityTypeConfig[kidIdx];
-                    if (childCfg.independent) return;            // skip independents
+                    if (childCfg.independent) return;
                     state.entityTypeFilters[kidIdx] = cb.checked;
-                    if (checkRefs[kidIdx]) checkRefs[kidIdx].checked = cb.checked;
+                    const kidCb = checkRefs[kidIdx];
+                    if (kidCb) kidCb.checked = cb.checked;
                 });
                 requestRedraw();
-            };
-        } else {
-            cb.onchange = () => {
+            });
+        } else {                              // child / solo
+            cb.addEventListener('change', () => {
                 state.entityTypeFilters[idx] = cb.checked;
                 if (cfg.parentGroup !== undefined) syncParentState(cfg.parentGroup);
                 requestRedraw();
-            };
+            });
         }
+        return div;
     }
 
-    /* Single pass keeps original order intact */
+    /*──────── main loop preserves source order ────────────────*/
     state.entityTypeConfig.forEach((cfg, i) => {
         if (cfg.isGroup) {
-            makeRow(cfg, i, false);
-            (kidsByParent[i] || []).forEach(k => {
-                const childCfg = state.entityTypeConfig[k];
-                if (cfg.showChildren !== false) makeRow(childCfg, k, true);
-                else checkRefs[k] = null;   // placeholder
+            /* 1️⃣ parent row */
+            const parentRow = makeRow(cfg, i, 'parent');
+
+            /* 2️⃣ children (if not permanently hidden) */
+            const collapsedInit = cfg.collapsed === true;
+            (kidsByParent[i] || []).forEach(kidIdx => {
+                const childCfg = state.entityTypeConfig[kidIdx];
+                if (cfg.showChildren !== false) {
+                    const childRow = makeRow(childCfg, kidIdx, 'child');
+                    if (collapsedInit) childRow.style.display = 'none';
+                } else {
+                    checkRefs[kidIdx] = null;  // placeholder
+                }
             });
-        } else if (cfg.parentGroup === undefined) {
-            makeRow(cfg, i, false);       // stand-alone row
         }
+        /* stand-alone entry */
+        else if (cfg.parentGroup === undefined) {
+            makeRow(cfg, i, 'solo');
+        }
+        /* child rows created when parent is processed */
     });
 }
+
+
 
 export function buildLegend() {
     const c = getElem('legend');

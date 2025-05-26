@@ -198,6 +198,7 @@
     "renderType": "list",
     "showChildren": true,
     "defaultEnabled": true,
+    "collapsed": true,
     "list": [
       {
         "nickname": "Ultra Low Tier Zone (◻️)",
