@@ -12,13 +12,17 @@ export function buildAllUI() {
 }
 
 /*───────────────────────────────────────────────────────────────────────────*\
-  ENTITY-TYPE LIST (supports parent “group” rows created from renderType:list)
+  ENTITY-TYPES PANEL
+  ────────────────────────────────────────────────────────────────────────────
+  • Parent rows: renderType:"list"
+  • Parent option   showChildren:false   hides sub-rows.
+  • Child option    independent:true    excludes that row from parent toggles.
 \*───────────────────────────────────────────────────────────────────────────*/
 export function buildEntityTypes() {
     const c = getElem('entityTypes');
     c.innerHTML = '';
 
-    /* map of parent → child indices */
+    /* map parentIdx → child indices */
     const kidsByParent = {};
     state.entityTypeConfig.forEach((cfg, i) => {
         if (cfg.parentGroup !== undefined) {
@@ -26,10 +30,27 @@ export function buildEntityTypes() {
         }
     });
 
-    /* keep refs so we can change check‐states programmatically */
+    /* checkbox refs (null for hidden children) */
     const checkRefs = [];
 
-    function makeRow(cfg, idx) {
+    /*── helpers ─────────────────────────────────────────────────────────────*/
+    function syncParentState(parentIdx) {
+        const kids = (kidsByParent[parentIdx] || [])
+            .filter(k => !state.entityTypeConfig[k].independent);     // only dependents
+
+        if (kids.length === 0) return;          // all children independent → ignore
+
+        const allOn = kids.every(k => state.entityTypeFilters[k]);
+        const allOff = kids.every(k => !state.entityTypeFilters[k]);
+        const pCb = checkRefs[parentIdx];
+        if (!pCb) return;
+
+        if (allOn) { pCb.indeterminate = false; pCb.checked = true; }
+        else if (allOff) { pCb.indeterminate = false; pCb.checked = false; }
+        else { pCb.indeterminate = true; pCb.checked = false; }
+    }
+
+    function makeRow(cfg, idx, isChild) {
         const lbl = document.createElement('label');
         const cb = Object.assign(document.createElement('input'), {
             type: 'checkbox',
@@ -40,55 +61,48 @@ export function buildEntityTypes() {
         if (cfg.isGroup) {
             lbl.style.fontWeight = 'bold';
             lbl.style.marginTop = '6px';
-        } else if (cfg.parentGroup !== undefined) {
+        } else if (isChild) {
             lbl.style.marginLeft = '18px';
         }
 
         lbl.append(cb, ' ', cfg.nickname || '(unnamed)');
         c.append(lbl);
 
-        /* handlers ───────────────────────────────────────────────*/
+        /*── handlers ──────────────────────────────────────────────────────────*/
         if (cfg.isGroup) {
             cb.onchange = () => {
-                (kidsByParent[idx] || []).forEach(k => {
-                    state.entityTypeFilters[k] = cb.checked;
-                    checkRefs[k].checked = cb.checked;
+                (kidsByParent[idx] || []).forEach(kidIdx => {
+                    const childCfg = state.entityTypeConfig[kidIdx];
+                    if (childCfg.independent) return;            // skip independents
+                    state.entityTypeFilters[kidIdx] = cb.checked;
+                    if (checkRefs[kidIdx]) checkRefs[kidIdx].checked = cb.checked;
                 });
                 requestRedraw();
             };
         } else {
             cb.onchange = () => {
                 state.entityTypeFilters[idx] = cb.checked;
-
-                const p = cfg.parentGroup;
-                if (p !== undefined) {
-                    const kids = kidsByParent[p];
-                    const allOn = kids.every(k => state.entityTypeFilters[k]);
-                    const allOff = kids.every(k => !state.entityTypeFilters[k]);
-
-                    const pCb = checkRefs[p];
-                    if (allOn) {
-                        pCb.indeterminate = false;
-                        pCb.checked = true;
-                    } else if (allOff) {
-                        pCb.indeterminate = false;
-                        pCb.checked = false;
-                    } else {
-                        pCb.indeterminate = true;
-                        pCb.checked = false;
-                    }
-                }
+                if (cfg.parentGroup !== undefined) syncParentState(cfg.parentGroup);
                 requestRedraw();
             };
         }
     }
 
-    state.entityTypeConfig.forEach(makeRow);
+    /* Single pass keeps original order intact */
+    state.entityTypeConfig.forEach((cfg, i) => {
+        if (cfg.isGroup) {
+            makeRow(cfg, i, false);
+            (kidsByParent[i] || []).forEach(k => {
+                const childCfg = state.entityTypeConfig[k];
+                if (cfg.showChildren !== false) makeRow(childCfg, k, true);
+                else checkRefs[k] = null;   // placeholder
+            });
+        } else if (cfg.parentGroup === undefined) {
+            makeRow(cfg, i, false);       // stand-alone row
+        }
+    });
 }
 
-/*───────────────────────────────────────────────────────────────────────────*/
-/* the rest of the file is unchanged                                         */
-/*───────────────────────────────────────────────────────────────────────────*/
 export function buildLegend() {
     const c = getElem('legend');
     c.innerHTML = '';
