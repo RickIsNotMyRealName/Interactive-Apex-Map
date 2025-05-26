@@ -10,13 +10,10 @@ import {
 } from './ui-builder.js';
 import { requestRedraw, resizeCanvases } from './render.js';
 
+const FETCH_OPTS = { cache: 'no-cache' };
+
 /*───────────────────────────────────────────────────────────────────────────*\
   PRE-PROCESS ENTITY-TYPE CONFIG
-  • Adds support for a new parent entry whose `renderType` is "list".
-    The parent doesn’t render anything; its `list` array contains
-    normal entity-type objects that *do* render.
-  • We flatten the structure so the rest of the code can keep treating
-    `state.entityTypeConfig` as a simple array.
 \*───────────────────────────────────────────────────────────────────────────*/
 function preprocessEntityTypes(raw) {
   const cfgs   = [];
@@ -26,8 +23,8 @@ function preprocessEntityTypes(raw) {
     /*──────── parent / group entry ────────*/
     if (item.renderType === 'list' && Array.isArray(item.list)) {
       const groupIdx = cfgs.length;
+      const grpEnabled = item.defaultEnabled ?? false;
 
-      const grpEnabled = item.defaultEnabled ?? false;   // ← respect flag
       cfgs.push({ ...item, isGroup: true });
       checks.push(grpEnabled);                           // ← store state
 
@@ -55,7 +52,7 @@ const STORAGE_KEY = 'lastMapSelection';
 export async function loadDefaultList() {
   const sel = getElem('defaultMapSelect');
   try {
-    const res = await fetch('./maps/manifest.json');
+    const res = await fetch('./maps/manifest.json', FETCH_OPTS);
     if (!res.ok) throw new Error(res.statusText);
     const list = await res.json();
 
@@ -79,7 +76,7 @@ export async function loadDefaultList() {
 /*───────────────────────────────────────────────────────────────────────────*/
 export async function loadDefaultEntityTypes() {
   try {
-    const res = await fetch('./entityTypes/entity-types.json');
+    const res = await fetch('./entityTypes/entity-types.json', FETCH_OPTS);
     if (!res.ok) throw new Error(res.statusText);
     const raw = await res.json();
     const { cfgs, checks } = preprocessEntityTypes(raw);
@@ -174,7 +171,8 @@ export function attachLoadHandlers() {
     if (!v) return;
 
     try {
-      const txt = await fetch(v).then(r => r.ok ? r.text() : Promise.reject(r.status));
+      const txt = await fetch(v, FETCH_OPTS)
+        .then(r => r.ok ? r.text() : Promise.reject(r.status));
       handleCombinedData(JSON.parse(txt), v.split('/').pop());
     } catch (err) {
       alert('Could not load map: ' + err);
