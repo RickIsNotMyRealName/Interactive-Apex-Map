@@ -23,21 +23,23 @@ function preprocessEntityTypes(raw) {
   const checks = [];
 
   raw.forEach(item => {
-    // ── parent/group entry ────────────────────────────────────
+    /*──────── parent / group entry ────────*/
     if (item.renderType === 'list' && Array.isArray(item.list)) {
       const groupIdx = cfgs.length;
 
+      const grpEnabled = item.defaultEnabled ?? false;   // ← respect flag
       cfgs.push({ ...item, isGroup: true });
-      checks.push(false);                     // group checkbox itself
+      checks.push(grpEnabled);                           // ← store state
 
-      const inherited = item.defaultEnabled ?? false;
+      /* inherit parent default if child doesn’t specify its own */
+      const inherited = grpEnabled;
 
       item.list.forEach(sub => {
         cfgs.push({ ...sub, parentGroup: groupIdx });
         checks.push(sub.defaultEnabled ?? inherited);
       });
     }
-    // ── normal entry ───────────────────────────────────────────
+    /*──────── normal entry ────────────────*/
     else {
       cfgs.push(item);
       checks.push(!!item.defaultEnabled);
